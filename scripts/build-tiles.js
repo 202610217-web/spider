@@ -6,7 +6,7 @@ import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { buildingHeight } from '../src/height.js';
 import { Z, S, lonLatToTile } from '../src/tile.js';
-import { ROAD_WIDTH } from '../src/roads.js';
+import { ROAD_WIDTH, densify } from '../src/roads.js';
 
 const SRC = process.argv[2] ?? 'data/south-korea-latest.osm.pbf';
 const OUT = 'public/data/tiles';
@@ -26,16 +26,24 @@ const exit = new Promise((r) => osmium.on('close', r));
 const tiles = new Map(); // "x/y" → { buildings: JSON 문자열[], roads: JSON 문자열[] }
 const count = { buildings: 0, roads: 0 };
 let skipped = 0;
-// 타일 기준 좌표로 바꿔 첫 꼭짓점이 속한 타일에 넣음
-// shortcut: 타일 경계를 넘는 긴 도로는 자르지 않음 — 로드 범위 가장자리에서 끊겨 보이면 타일 경계에서 분할
-function put(kind, coords, props) {
-  const pts = coords.map(([lon, lat]) => lonLatToTile(lon, lat));
+// pts(전역 타일 좌표)를 첫 점이 속한 타일 기준 미터로 바꿔 그 타일에 넣음
+function put(kind, pts, props) {
   const tx = Math.floor(pts[0][0]), ty = Math.floor(pts[0][1]);
   const xy = pts.map(([fx, fy]) => [+((fx - tx) * S).toFixed(1), +(-(fy - ty) * S).toFixed(1)]);
   const key = `${tx}/${ty}`;
   if (!tiles.has(key)) tiles.set(key, { buildings: [], roads: [] });
   tiles.get(key)[kind].push(JSON.stringify(props(xy)));
   count[kind]++;
+}
+const tileOf = ([fx, fy]) => `${Math.floor(fx)}/${Math.floor(fy)}`;
+// 도로는 40m 이하 구간으로 쪼갠 뒤 타일이 바뀌는 점에서 잘라 각 타일에 나눠 넣음 (조각은 끝점을 공유해 이어짐)
+function putRoad(coords, w) {
+  const pts = densify(coords.map(([lon, lat]) => lonLatToTile(lon, lat)), 40 / S);
+  for (let i = 1, start = 0; i < pts.length; i++) {
+    if (i < pts.length - 1 && tileOf(pts[i]) === tileOf(pts[start])) continue;
+    put('roads', pts.slice(start, i + 1), (line) => ({ w, line }));
+    start = i;
+  }
 }
 for await (const line of createInterface({ input: osmium.stdout })) {
   if (!line) continue;
@@ -44,10 +52,10 @@ for await (const line of createInterface({ input: osmium.stdout })) {
   if (t.military || t.building === 'military' || t.landuse === 'military') { skipped++; continue; }
   if (g.type === 'LineString') {
     const w = ROAD_WIDTH[t.highway];
-    if (w && !t.tunnel) put('roads', g.coordinates, (line) => ({ w, line })); // 터널(지하)은 제외
+    if (w && !t.tunnel) putRoad(g.coordinates, w); // 터널(지하)은 제외
   } else if (t.building) {
     const h = buildingHeight(t);
-    for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) put('buildings', poly[0], (ring) => ({ h, ring })); // 바깥 링만
+    for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) put('buildings', poly[0].map(([lon, lat]) => lonLatToTile(lon, lat)), (ring) => ({ h, ring })); // 바깥 링만
   }
 }
 if (await exit) throw new Error('osmium export 실패');

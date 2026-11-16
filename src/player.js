@@ -7,6 +7,7 @@ const tmp = new THREE.Vector3(), n = new THREE.Vector3();
 export class Player {
   constructor(boxes) {
     this.boxes = boxes;          // THREE.Box3[] — 건물 박스 충돌
+    this.groundAt = () => 0;     // (x, z) → 땅 높이
     this.pos = new THREE.Vector3(0, 50, 0);
     this.vel = new THREE.Vector3();
     this.anchor = null;
@@ -17,7 +18,7 @@ export class Player {
     this.anchor = p.clone();
     this.ropeLen = this.pos.distanceTo(p);
     // 진자 최저점이 땅에서 CLEAR만큼 뜨는 길이까지 줄을 감아 올림 → 땅에서 걸어도 끌리지 않고 스윙
-    this.ropeMin = Math.max(MIN_ROPE, Math.min(this.ropeLen, p.y - CLEAR));
+    this.ropeMin = Math.max(MIN_ROPE, Math.min(this.ropeLen, p.y - this.groundAt(this.pos.x, this.pos.z) - CLEAR));
   }
   release() {
     if (!this.anchor) return;
@@ -57,7 +58,7 @@ export class Player {
     this.anchor = p.clone();
     this.ropeLen = this.pos.distanceTo(p);
     // 진자 최저점이 땅에서 CLEAR만큼 뜨는 길이까지 줄을 감아 올림 → 땅에서 걸어도 끌리지 않고 스윙
-    this.ropeMin = Math.max(MIN_ROPE, Math.min(this.ropeLen, p.y - CLEAR));
+    this.ropeMin = Math.max(MIN_ROPE, Math.min(this.ropeLen, p.y - this.groundAt(this.pos.x, this.pos.z) - CLEAR));
   }
   release() {
     if (!this.anchor) return;
@@ -91,7 +92,8 @@ export class Player {
     }
 
     this.onGround = false;
-    if (this.pos.y < R) { this.pos.y = R; if (v.y < 0) v.y = 0; this.onGround = true; }
+    const g = this.groundAt(this.pos.x, this.pos.z) + R;
+    if (this.pos.y < g) { this.pos.y = g; if (v.y < 0) v.y = 0; this.onGround = true; }
     for (const b of this.boxes) this.collide(b);
   }
 

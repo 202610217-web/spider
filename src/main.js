@@ -20,10 +20,6 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(300, 500, 200);
 scene.add(sun);
 
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.MeshLambertMaterial({ color: 0x8a9a7a }));
-ground.rotation.x = -Math.PI / 2;
-scene.add(ground);
-
 const camera = new THREE.PerspectiveCamera(65, 1, 0.5, 3000);
 function resize() {
   renderer.setSize(innerWidth, innerHeight);
@@ -39,7 +35,12 @@ const [fx, fy] = lonLatToTile(lon, lat);
 const ox = Math.floor(fx), oy = Math.floor(fy);
 const player = new Player([]);
 player.pos.set((fx - ox) * S, 50, (fy - oy) * S);
-const updateTiles = createTiles(scene, ox, oy, (boxes) => (player.boxes = boxes));
+let ready = false; // 시작 타일이 뜨기 전에는 물리를 멈춤
+const tiles = createTiles(scene, ox, oy, (boxes) => {
+  player.boxes = boxes;
+  if (!ready && (ready = true)) player.pos.y = tiles.groundAt(player.pos.x, player.pos.z) + 50;
+});
+player.groundAt = tiles.groundAt;
 const hero = createHero();
 scene.add(hero);
 const input = createInput(renderer.domElement);
@@ -54,6 +55,7 @@ marker.renderOrder = 1;
 scene.add(marker);
 
 const move = new THREE.Vector3(), target = new THREE.Vector3();
+const camRay = new THREE.Ray(), camHit = new THREE.Vector3();
 const webBtn = document.getElementById('btn-web');
 let acc = 0, last = performance.now(), frame = 0, near = [];
 
@@ -76,10 +78,10 @@ renderer.setAnimationLoop((now) => {
   if (input.web && cand) player.attach(cand);
   if (!input.web) player.release();
 
+  if (!ready) acc = 0;
   while (acc >= STEP) { player.step(STEP, move, input.jump); input.jump = false; acc -= STEP; }
 
-  updateTiles(player.pos);
-  ground.position.set(player.pos.x, 0, player.pos.z);
+  tiles.update(player.pos);
 
   hero.position.copy(player.pos);
   const hv = Math.hypot(player.vel.x, player.vel.z);
@@ -94,10 +96,15 @@ renderer.setAnimationLoop((now) => {
   rope.visible = !!player.anchor;
   if (player.anchor) rope.geometry.setFromPoints([player.pos, player.anchor]);
 
-  // shortcut: 카메라가 건물 안으로 들어가도 막지 않음, 거슬리면 레이캐스트로 당기기
+  // 카메라: 플레이어 뒤 CAM_DIST, 사이에 건물이 있으면 그 앞까지 당기고 땅 밑으로는 안 내려감
   target.copy(player.pos).y += 1.5;
   const cp = Math.cos(input.pitch);
-  camera.position.set(target.x + sy * cp * CAM_DIST, Math.max(0.5, target.y + Math.sin(input.pitch) * CAM_DIST), target.z + cy * cp * CAM_DIST);
+  camRay.origin.copy(target);
+  camRay.direction.set(sy * cp, Math.sin(input.pitch), cy * cp);
+  let dist = CAM_DIST;
+  for (const b of near) if (camRay.intersectBox(b, camHit)) dist = Math.min(dist, camHit.distanceTo(target) - 0.3);
+  camera.position.copy(target).addScaledVector(camRay.direction, Math.max(dist, 1));
+  camera.position.y = Math.max(camera.position.y, tiles.groundAt(camera.position.x, camera.position.z) + 0.5);
   camera.lookAt(target);
   renderer.render(scene, camera);
 });

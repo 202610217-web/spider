@@ -31,14 +31,13 @@ jobs:
         with:
           path: data/south-korea-latest.osm.pbf
           key: korea-pbf-v1
-      - name: 서울 건물 타일 생성
+      - name: 전국 타일 생성 (용량 측정 실험)
         run: |
+          curl -sI -H "Origin: https://example.github.io" https://s3.amazonaws.com/elevation-tiles-prod/terrarium/12/3492/1586.png | grep -iE "^HTTP|access-control|content-length" || true
           mkdir -p data
           [ -f data/south-korea-latest.osm.pbf ] || curl -fL -o data/south-korea-latest.osm.pbf https://download.geofabrik.de/asia/south-korea-latest.osm.pbf
-          # GitHub Pages 용량(1GB) 때문에 서울만: 서,남,동,북
-          osmium extract -b 126.76,37.41,127.19,37.70 data/south-korea-latest.osm.pbf -o data/seoul.osm.pbf --overwrite
-          npm run build:tiles -- data/seoul.osm.pbf
-          du -sh public/data/tiles
+          /usr/bin/time -v npm run build:tiles 2>&1 | grep -E "건물|Maximum resident|Elapsed"
+          du -sh public/data/tiles; find public/data/tiles -type f | wc -l
       - run: npx vite build --base=/${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:
