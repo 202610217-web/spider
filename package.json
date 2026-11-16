@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "fetch:osm": "node scripts/fetch-osm.js",
-    "test": "node src/height.test.js"
+    "test": "node src/height.test.js && node src/player.test.js"
   },
   "dependencies": {
     "three": "^0.187.0"
