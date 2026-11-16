@@ -5,7 +5,7 @@ import { makeCollider } from './collide.js';
 import { addRibbon, densify } from './roads.js';
 import { N, tileHeights, heightAt } from './terrain.js';
 
-const BASE = import.meta.env.VITE_TILE_URL ?? import.meta.env.BASE_URL + 'data/tiles'; // 배포 시 R2 주소
+const BASE = import.meta.env.VITE_TILE_URL || import.meta.env.BASE_URL + 'data/tiles'; // VITE_TILE_URL: R2 공개 주소
 const LOAD = 1, KEEP = 2; // 주변 3×3 타일 로드, 5×5 밖은 해제
 const SINK = 8; // 경사지에서 건물 밑이 뜨지 않게 땅속으로 내리는 깊이(m)
 const groundMat = new THREE.MeshLambertMaterial({ color: 0x8a9a7a });
@@ -15,7 +15,7 @@ const roadMat = new THREE.MeshBasicMaterial({ color: 0x4a4d52, side: THREE.Doubl
 
 // 플레이어 주변 타일만 불러오고 먼 타일은 해제. 월드 원점 = 타일 (ox, oy)의 북서쪽 모서리
 export function createTiles(scene, ox, oy, onChange) {
-  const loaded = new Map(); // "x/y" → { group, colliders, hgt } (로딩 중이면 null)
+  const loaded = new Map(); // "x/y" → { group, colliders, hgt, roads, off } (로딩 중이면 null)
   const colliders = () => [...loaded.values()].flatMap((t) => t?.colliders ?? []);
 
   async function load(tx, ty, key) {
@@ -28,7 +28,7 @@ export function createTiles(scene, ox, oy, onChange) {
     if (!loaded.has(key)) return; // 로딩 중 범위를 벗어남
     const off = new THREE.Vector3((tx - ox) * S, 0, (ty - oy) * S);
     // 지오메트리는 타일 기준 좌표, 그룹 위치만 옮김 → 원점에서 멀어져도 떨림 없음
-    const tile = { group: new THREE.Group(), colliders: [], hgt };
+    const tile = { group: new THREE.Group(), colliders: [], hgt, roads, off };
     tile.group.position.copy(off);
 
     const ground = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2).translate(S / 2, 0, S / 2); // 꼭짓점 순서 = 고도 격자 순서
@@ -58,9 +58,11 @@ export function createTiles(scene, ox, oy, onChange) {
     onChange(colliders());
   }
 
-  function update(pos) {
+  // vel: 빠르게 날아갈 때를 대비해 3초 뒤 위치 쪽 타일도 미리 불러옴 (해제 범위 안인 한 칸 앞까지)
+  function update(pos, vel) {
     const px = ox + Math.floor(pos.x / S), py = oy + Math.floor(pos.z / S);
-    for (let x = px - LOAD; x <= px + LOAD; x++) for (let y = py - LOAD; y <= py + LOAD; y++) {
+    const ax = px + Math.sign(Math.floor((pos.x + vel.x * 3) / S) + ox - px), ay = py + Math.sign(Math.floor((pos.z + vel.z * 3) / S) + oy - py);
+    for (const [cx, cy] of [[px, py], [ax, ay]]) for (let x = cx - LOAD; x <= cx + LOAD; x++) for (let y = cy - LOAD; y <= cy + LOAD; y++) {
       const key = `${x}/${y}`;
       if (!loaded.has(key)) load(x, y, key);
     }
@@ -80,5 +82,5 @@ export function createTiles(scene, ox, oy, onChange) {
     const hgt = loaded.get(`${ox + tx}/${oy + ty}`)?.hgt;
     return hgt ? heightAt(hgt, x - tx * S, z - ty * S) : 0;
   }
-  return { update, groundAt };
+  return { update, groundAt, loaded };
 }

@@ -38,6 +38,8 @@ jobs:
           npm run build:tiles
           du -sh public/data/tiles # GitHub Pages 한도는 1GB
       - run: npx vite build --base=/${{ github.event.repository.name }}/
+        env:
+          VITE_TILE_URL: ${{ vars.TILE_URL }} # 비어 있으면 사이트에 함께 올린 타일을 읽음
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist
