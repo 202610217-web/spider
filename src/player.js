@@ -52,7 +52,7 @@ export class Player {
       const hv = Math.hypot(v.x, v.z);
       if (dx * dx + dz * dz < 0.01 && hv > 1) { dx = v.x / hv; dz = v.z / hv; }
       if (hv < MAX_SWING) { v.x += dx * SWING * dt; v.z += dz * SWING * dt; }
-    } else if ((this.climbing = !!this.wall && (this.climbing || into < -0.3) && !(this.onGround && into > 0))) {
+    } else if ((this.climbing = !!this.wall && (this.climbing || into < -0.3) && !(this.onGround && into > -0.3))) { // 땅에서는 벽 쪽으로 밀 때만 매달림
       // 벽타기: 벽 쪽으로 밀면 오르고 반대로 당기면 내려감, 나란한 입력은 옆으로, 가만히 있으면 매달림. 점프는 벽을 차고 뛰어내림
       const w = this.wall;
       if (jump) { v.set(w.x * 8, JUMP, w.z * 8); this.climbing = false; }

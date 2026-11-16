@@ -119,6 +119,6 @@ renderer.setAnimationLoop((now) => {
   // 빠를수록 시야각을 넓혀 속도감을 줌
   camera.fov += (FOV + Math.min(25, player.vel.length() * 0.45) - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
-  if (frame % 6 === 0) drawMinimap(player, hero.rotation.y);
+  if (frame % 12 === 0) drawMinimap(player, hero.rotation.y);
   renderer.render(scene, camera);
 });
