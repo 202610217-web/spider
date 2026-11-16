@@ -23,7 +23,7 @@ const ground = new THREE.Mesh(new THREE.PlaneGeometry(6000, 6000), new THREE.Mes
 ground.rotation.x = -Math.PI / 2;
 scene.add(ground);
 
-const camera = new THREE.PerspectiveCamera(65, 1, 0.1, 3000);
+const camera = new THREE.PerspectiveCamera(65, 1, 0.5, 3000);
 function resize() {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;

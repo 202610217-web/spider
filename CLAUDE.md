@@ -15,6 +15,7 @@
 
 ## 원칙
 - 건물은 로우폴리 상자형, 충돌은 박스 충돌
+- 도로는 바닥에 깔리는 띠, 폭은 등급별 표(`src/roads.js`)만 사용. 표에 없는 등급과 터널은 제외
 - 건물 높이 추정 규칙은 `src/height.js` 하나만 사용: `height` → `building:levels × 3m` → 10m
 - 플레이어 주변 타일만 불러오고 먼 타일은 해제(스트리밍)
 - 좌표는 타일마다 원점을 따로 잡아 부동소수점 떨림 방지 (타일 데이터는 원점 기준 미터)
@@ -26,7 +27,7 @@
 - `npm run build:tiles` — 한국 추출본 다운로드 후 전국 건물 타일 생성 (osmium-tool 설치 필요, 다른 파일은 `npm run build:tiles -- 경로.osm.pbf`)
 - 시작 위치 변경: 주소 뒤에 `?ll=위도,경도`
 - `npm run dev` — 개발 서버
-- `npm test` — 높이 규칙 자체 검사
+- `npm test` — 높이 규칙·물리·도로 띠 자체 검사
 
 ## 진행 현황
 - [x] 1단계: Vite+Three.js 초기화, 광화문 1km² 건물 fetch, 돌출 표시, 마우스/터치 카메라
@@ -34,3 +35,5 @@
 - [x] 3단계: Overpass → 전국 추출본 타일 파이프라인, 주변 3×3 타일 스트리밍(5×5 밖 해제), 거미줄은 충돌 박스에 부착
 - 남은 일: 실제 한국 추출본으로 build:tiles 실행 검증(클라우드 세션에서는 다운로드 차단됨), 타일 R2 업로드(배포 시 public/data는 Pages에 올리지 않기), 군 부지 폴리곤 내부 건물 제외
 - [x] 4단계(임시 배포): GitHub Actions(`.github/workflows/deploy.yml`)가 서울 타일을 만들고 main 푸시 시 GitHub Pages에 배포. 실제 한국 추출본으로 빌드 성공 확인. 전국 확장 시 Cloudflare Pages + R2로 이전
+- [x] 5단계: 도로 — 타일에 `roads` 추가, 등급별 폭의 띠로 표시
+- 다음 후보: 지형(Terrarium), 전국 확장(Cloudflare 이전), 카메라 벽 통과 방지
