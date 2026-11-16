@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { pushOut } from './collide.js';
 
 export const R = 0.5;            // 충돌 구 반지름(m)
-const G = -25, WALK = 10, JUMP = 10, AIR = 8, SWING = 14, MAX_SWING = 45, MIN_ROPE = 5;
+const G = -25, WALK = 10, JUMP = 10, AIR = 8, SWING = 14, MAX_SWING = 45, MIN_ROPE = 5, CLIMB = 7;
 const n = new THREE.Vector3();
 
 export class Player {
@@ -14,6 +14,7 @@ export class Player {
     this.anchor = null;
     this.ropeLen = 0;
     this.onGround = false;
+    this.wall = null;            // 지금 닿아 있는 벽의 바깥 방향(수평 단위 벡터)
   }
   attach(p) {
     this.anchor = p.clone();
@@ -34,6 +35,11 @@ export class Player {
       const hv = Math.hypot(v.x, v.z);
       if (dx * dx + dz * dz < 0.01 && hv > 1) { dx = v.x / hv; dz = v.z / hv; }
       if (hv < MAX_SWING) { v.x += dx * SWING * dt; v.z += dz * SWING * dt; }
+    } else if (this.wall && move.dot(this.wall) < -0.3) {
+      // 벽타기: 벽 쪽으로 밀면 중력 없이 오름. 벽과 나란한 방향 입력은 옆으로 이동, 점프는 벽을 차고 뛰어내림
+      const w = this.wall, into = move.dot(w);
+      if (jump) v.set(w.x * 8, JUMP, w.z * 8);
+      else v.set((move.x - w.x * into) * CLIMB - w.x * 2, CLIMB - G * dt, (move.z - w.z * into) * CLIMB - w.z * 2); // -G*dt: 아래에서 더해지는 중력 상쇄, -w*2: 벽에 붙어 있게 살짝 누름
     } else if (this.onGround) {
       v.x = move.x * WALK; v.z = move.z * WALK;
       if (jump) v.y = JUMP;
@@ -57,6 +63,7 @@ export class Player {
     }
 
     this.onGround = false;
+    this.wall = null;
     const g = this.groundAt(this.pos.x, this.pos.z) + R;
     if (this.pos.y < g) { this.pos.y = g; if (v.y < 0) v.y = 0; this.onGround = true; }
     for (const c of this.colliders) {
@@ -65,6 +72,7 @@ export class Player {
       const into = v.dot(hit);
       if (into < 0) v.addScaledVector(hit, -into);
       if (hit.y > 0.7) this.onGround = true;
+      else if (Math.abs(hit.y) < 0.3) this.wall = (this.wall ?? new THREE.Vector3()).set(hit.x, 0, hit.z).normalize();
     }
   }
 }
