@@ -10,10 +10,17 @@ let p = new Player([box]); p.pos.set(5, 40, -5);
 for (let i = 0; i < 600; i++) p.step(1 / 120, still, false);
 assert.ok(Math.abs(p.pos.y - (30 + R)) < 0.01 && p.onGround, `roof ${p.pos.y}`);
 
-// 벽으로 달려도 뚫지 못함
+// 벽으로 달리면 뚫지 못하고 벽을 타고 올라 옥상에 섬
 p = new Player([box]); p.pos.set(-3, R, -5);
-for (let i = 0; i < 600; i++) p.step(1 / 120, new THREE.Vector3(1, 0, 0), false);
-assert.ok(p.pos.x <= -R + 0.01, `wall ${p.pos.x}`);
+for (let i = 0; i < 120; i++) { p.step(1 / 120, new THREE.Vector3(1, 0, 0), false); assert.ok(p.pos.x <= -R + 0.01 || p.pos.y > 30, `wall ${p.pos.x}`); }
+assert.ok(p.wall && p.pos.y > 3, `climbing ${p.pos.y}`);
+for (let i = 0; i < 900 && p.pos.x < 2; i++) p.step(1 / 120, new THREE.Vector3(1, 0, 0), false); // 옥상 위로 넘어갈 때까지
+for (let i = 0; i < 300; i++) p.step(1 / 120, still, false);
+assert.ok(p.pos.x > 0 && Math.abs(p.pos.y - (30 + R)) < 0.01 && p.onGround, `on the roof ${p.pos.x} ${p.pos.y}`);
+// 벽에서 점프하면 벽 반대쪽으로 튕겨 나옴
+p = new Player([box]); p.pos.set(-R, 10, -5); p.wall = new THREE.Vector3(-1, 0, 0);
+p.step(1 / 120, new THREE.Vector3(1, 0, 0), true);
+assert.ok(p.vel.x < -5 && p.vel.y > 5);
 
 // 땅 높이를 따름
 p = new Player([]); p.groundAt = () => 20; p.pos.set(0, 5, 0);

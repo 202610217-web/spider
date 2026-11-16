@@ -8,7 +8,8 @@ export function makeCollider(ring, off, y0, y1) {
   return { pts, y0, y1, box: new THREE.Box3(new THREE.Vector3(Math.min(...xs), y0, Math.min(...zs)), new THREE.Vector3(Math.max(...xs), y1, Math.max(...zs))) };
 }
 
-function inside(pts, x, z) {
+// 점 (x, z)가 다각형 pts 안에 있는지
+export function inside(pts, x, z) {
   let c = false;
   for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
     const [xi, zi] = pts[i], [xj, zj] = pts[j];
