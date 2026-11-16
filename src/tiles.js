@@ -3,7 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Z, S } from './tile.js';
 import { ringToBox } from './player.js';
 
-const BASE = import.meta.env.VITE_TILE_URL ?? '/data/tiles'; // 배포 시 R2 주소
+const BASE = import.meta.env.VITE_TILE_URL ?? import.meta.env.BASE_URL + 'data/tiles'; // 배포 시 R2 주소
 const LOAD = 1, KEEP = 2; // 주변 3×3 타일 로드, 5×5 밖은 해제
 const mat = new THREE.MeshLambertMaterial({ color: 0xd8d2c4 });
 

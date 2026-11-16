@@ -1,0 +1,56 @@
+# 서울 건물 타일을 만들고 사이트를 GitHub Pages에 배포
+name: deploy
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: sudo apt-get update && sudo apt-get install -y osmium-tool
+      - run: npm ci
+      - run: npm test
+      # 추출본은 캐시 (새 지도 데이터가 필요하면 키의 v1을 올림)
+      - uses: actions/cache@v4
+        with:
+          path: data/south-korea-latest.osm.pbf
+          key: korea-pbf-v1
+      - name: 서울 건물 타일 생성
+        run: |
+          mkdir -p data
+          [ -f data/south-korea-latest.osm.pbf ] || curl -fL -o data/south-korea-latest.osm.pbf https://download.geofabrik.de/asia/south-korea-latest.osm.pbf
+          # GitHub Pages 용량(1GB) 때문에 서울만: 서,남,동,북
+          osmium extract -b 126.76,37.41,127.19,37.70 data/south-korea-latest.osm.pbf -o data/seoul.osm.pbf --overwrite
+          npm run build:tiles -- data/seoul.osm.pbf
+          du -sh public/data/tiles
+      - run: npx vite build --base=/${{ github.event.repository.name }}/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
