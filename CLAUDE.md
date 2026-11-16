@@ -37,3 +37,4 @@
 - [x] 4단계(임시 배포): GitHub Actions(`.github/workflows/deploy.yml`)가 서울 타일을 만들고 main 푸시 시 GitHub Pages에 배포. 실제 한국 추출본으로 빌드 성공 확인. 전국 확장 시 Cloudflare Pages + R2로 이전
 - [x] 5단계: 도로 — 타일에 `roads` 추가, 등급별 폭의 띠로 표시
 - 다음 후보: 지형(Terrarium), 전국 확장(Cloudflare 이전), 카메라 벽 통과 방지
+- [x] 6단계: 거미줄 조작 개선 — 스틱 방향 자동 조준, 걸 수 있는 지점 표시(벽의 점 + 버튼 색), 줄 감아 올리기, 공중 카메라 자동 추적

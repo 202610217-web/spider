@@ -1,8 +1,9 @@
-// 키보드·마우스·터치 입력 → { yaw, pitch, mx, my, jump, web }
+// 키보드·마우스·터치 입력 → { yaw, pitch, mx, my, jump, web, lookAt }
 export function createInput(canvas) {
-  const s = { yaw: 0, pitch: 0.3, mx: 0, my: 0, jump: false, web: false };
+  const s = { yaw: 0, pitch: -0.12, mx: 0, my: 0, jump: false, web: false, lookAt: 0 }; // lookAt: 마지막으로 시점을 직접 돌린 시각
   const keys = new Set();
   const look = (dx, dy, k) => {
+    s.lookAt = performance.now();
     s.yaw -= dx * k;
     s.pitch = Math.max(-0.4, Math.min(1.3, s.pitch + dy * k));
   };
