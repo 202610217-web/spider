@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Spider</title>
+  <style>
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc3e6; }
+    canvas { display: block; touch-action: none; }
+    #hud { position: fixed; left: 6px; top: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
+    .tbtn { display: none; position: fixed; bottom: 30px; width: 72px; height: 72px; border-radius: 50%; border: 0; background: #fff8; font: 14px sans-serif; touch-action: none; user-select: none; }
+    @media (pointer: coarse) { .tbtn { display: block; } #hud { display: none; } }
+    #attr { position: fixed; right: 6px; bottom: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
+  </style>
+</head>
+<body>
+  <div id="hud">클릭: 마우스 고정 · WASD 이동 · Space 점프 · 왼쪽 버튼 누르는 동안 거미줄</div>
+  <button id="btn-jump" class="tbtn" style="right: 110px">점프</button>
+  <button id="btn-web" class="tbtn" style="right: 20px">거미줄</button>
+  <div id="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors</div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
