@@ -9,7 +9,8 @@
 - 사이트: Cloudflare Pages / 지도 타일: Cloudflare R2
 
 ## 데이터
-- 건물·도로: OpenStreetMap (Overpass API)
+- 건물·도로: OpenStreetMap — Geofabrik 한국 추출본(.osm.pbf)을 `osmium-tool`로 가공 (`scripts/build-tiles.js`)
+- 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json`, 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
 - 지형: AWS Terrain Tiles (Terrarium)
 
 ## 원칙
@@ -22,10 +23,13 @@
 - OSM 출처 표기 필수 (© OpenStreetMap contributors)
 
 ## 명령
-- `npm run fetch:osm` — 테스트 데이터 생성
+- `npm run build:tiles` — 한국 추출본 다운로드 후 전국 건물 타일 생성 (osmium-tool 설치 필요, 다른 파일은 `npm run build:tiles -- 경로.osm.pbf`)
+- 시작 위치 변경: 주소 뒤에 `?ll=위도,경도`
 - `npm run dev` — 개발 서버
 - `npm test` — 높이 규칙 자체 검사
 
 ## 진행 현황
 - [x] 1단계: Vite+Three.js 초기화, 광화문 1km² 건물 fetch, 돌출 표시, 마우스/터치 카메라
 - [x] 2단계: 주인공 누리, 3인칭 카메라, 걷기/점프, 거미줄 스윙(자동 조준·로프 제약), 건물 AABB 충돌, 터치 조이스틱/버튼
+- [x] 3단계: Overpass → 전국 추출본 타일 파이프라인, 주변 3×3 타일 스트리밍(5×5 밖 해제), 거미줄은 충돌 박스에 부착
+- 남은 일: 실제 한국 추출본으로 build:tiles 실행 검증(클라우드 세션에서는 다운로드 차단됨), 타일 R2 업로드(배포 시 public/data는 Pages에 올리지 않기), 군 부지 폴리곤 내부 건물 제외

@@ -6,7 +6,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "fetch:osm": "node scripts/fetch-osm.js",
+    "build:tiles": "node --max-old-space-size=8192 scripts/build-tiles.js",
     "test": "node src/height.test.js && node src/player.test.js"
   },
   "dependencies": {
