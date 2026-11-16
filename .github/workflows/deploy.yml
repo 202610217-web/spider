@@ -1,4 +1,4 @@
-# 서울 건물 타일을 만들고 사이트를 GitHub Pages에 배포
+# 전국 건물·도로 타일을 만들고 사이트를 GitHub Pages에 배포
 name: deploy
 on:
   push:
@@ -31,14 +31,12 @@ jobs:
         with:
           path: data/south-korea-latest.osm.pbf
           key: korea-pbf-v1
-      - name: 서울 건물 타일 생성
+      - name: 전국 타일 생성
         run: |
           mkdir -p data
           [ -f data/south-korea-latest.osm.pbf ] || curl -fL -o data/south-korea-latest.osm.pbf https://download.geofabrik.de/asia/south-korea-latest.osm.pbf
-          # GitHub Pages 용량(1GB) 때문에 서울만: 서,남,동,북
-          osmium extract -b 126.76,37.41,127.19,37.70 data/south-korea-latest.osm.pbf -o data/seoul.osm.pbf --overwrite
-          npm run build:tiles -- data/seoul.osm.pbf
-          du -sh public/data/tiles
+          npm run build:tiles
+          du -sh public/data/tiles # GitHub Pages 한도는 1GB
       - run: npx vite build --base=/${{ github.event.repository.name }}/
       - uses: actions/upload-pages-artifact@v3
         with:

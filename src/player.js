@@ -1,20 +1,30 @@
 import * as THREE from 'three';
 
 export const R = 0.5;            // 충돌 구 반지름(m)
-const G = -25, WALK = 10, JUMP = 10, AIR = 8, REEL = 6, MIN_ROPE = 5;
+const G = -25, WALK = 10, JUMP = 10, AIR = 8, SWING = 14, REEL = 20, MIN_ROPE = 5, CLEAR = 2.5;
 const tmp = new THREE.Vector3(), n = new THREE.Vector3();
 
 export class Player {
   constructor(boxes) {
     this.boxes = boxes;          // THREE.Box3[] — 건물 박스 충돌
+    this.groundAt = () => 0;     // (x, z) → 땅 높이
     this.pos = new THREE.Vector3(0, 50, 0);
     this.vel = new THREE.Vector3();
     this.anchor = null;
     this.ropeLen = 0;
     this.onGround = false;
   }
-  attach(p) { this.anchor = p.clone(); this.ropeLen = this.pos.distanceTo(p); }
-  release() { this.anchor = null; }
+  attach(p) {
+    this.anchor = p.clone();
+    this.ropeLen = this.pos.distanceTo(p);
+    // 진자 최저점이 땅에서 CLEAR만큼 뜨는 길이까지 줄을 감아 올림 → 땅에서 걸어도 끌리지 않고 스윙
+    this.ropeMin = Math.max(MIN_ROPE, Math.min(this.ropeLen, p.y - this.groundAt(this.pos.x, this.pos.z) - CLEAR));
+  }
+  release() {
+    if (!this.anchor) return;
+    this.anchor = null;
+    this.vel.multiplyScalar(1.08); this.vel.y += 3; // 놓는 순간 살짝 튕겨 다음 스윙으로 잇기 쉽게
+  }
 
   // move: 월드 xz 방향(길이 ≤1), jump: 이번 스텝 점프 여부
   step(dt, move, jump) {
@@ -23,7 +33,48 @@ export class Player {
       v.x = move.x * WALK; v.z = move.z * WALK;
       if (jump) v.y = JUMP;
     } else {
-      v.x += move.x * AIR * dt; v.z += move.z * AIR * dt;
+      const a = this.anchor ? SWING : AIR;
+      v.x += move.x * a * dt; v.z += move.z * a * dt;
+    }
+    v.y += G * dt;
+    this.pos.addScaledVector(v, dt);
+
+    if (this.anchor) {           // 로프: 길이 이상 멀어지지 않게, 바깥 방향 속도 제거 (감는 중에는 감는 속도로 끌려감)
+      const reel = this.ropeLen > this.ropeMin ? REEL : 0;
+      this.ropeLen = Math.max(this.ropeMin, this.ropeLen - reel * dt);
+      n.subVectors(this.pos, this.anchor);
+      const L = n.length();
+      if (L > this.ropeLen) {
+        n.divideScalar(L);
+        this.pos.copy(this.anchor).addScaledVector(n, this.ropeLen);
+        const out = v.dot(n);
+        if (out > -reel) v.addScaledVector(n, -reel - out);
+      }
+    }
+
+    this.onGround = false;
+  }
+  attach(p) {
+    this.anchor = p.clone();
+    this.ropeLen = this.pos.distanceTo(p);
+    // 진자 최저점이 땅에서 CLEAR만큼 뜨는 길이까지 줄을 감아 올림 → 땅에서 걸어도 끌리지 않고 스윙
+    this.ropeMin = Math.max(MIN_ROPE, Math.min(this.ropeLen, p.y - this.groundAt(this.pos.x, this.pos.z) - CLEAR));
+  }
+  release() {
+    if (!this.anchor) return;
+    this.anchor = null;
+    this.vel.multiplyScalar(1.08); this.vel.y += 3; // 놓는 순간 살짝 튕겨 다음 스윙으로 잇기 쉽게
+  }
+
+  // move: 월드 xz 방향(길이 ≤1), jump: 이번 스텝 점프 여부
+  step(dt, move, jump) {
+    const v = this.vel;
+    if (this.onGround && !this.anchor) {
+      v.x = move.x * WALK; v.z = move.z * WALK;
+      if (jump) v.y = JUMP;
+    } else {
+      const a = this.anchor ? SWING : AIR;
+      v.x += move.x * a * dt; v.z += move.z * a * dt;
     }
     v.y += G * dt;
     this.pos.addScaledVector(v, dt);
@@ -41,7 +92,8 @@ export class Player {
     }
 
     this.onGround = false;
-    if (this.pos.y < R) { this.pos.y = R; if (v.y < 0) v.y = 0; this.onGround = true; }
+    const g = this.groundAt(this.pos.x, this.pos.z) + R;
+    if (this.pos.y < g) { this.pos.y = g; if (v.y < 0) v.y = 0; this.onGround = true; }
     for (const b of this.boxes) this.collide(b);
   }
 

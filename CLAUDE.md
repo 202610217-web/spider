@@ -11,7 +11,7 @@
 ## 데이터
 - 건물·도로: OpenStreetMap — Geofabrik 한국 추출본(.osm.pbf)을 `osmium-tool`로 가공 (`scripts/build-tiles.js`)
 - 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json`, 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
-- 지형: AWS Terrain Tiles (Terrarium)
+- 지형: AWS Terrain Tiles (Terrarium) z12 PNG를 브라우저가 직접 받아 타일당 33×33 고도 격자로 사용 (`src/terrain.js`), 실패 시 평지
 
 ## 원칙
 - 건물은 로우폴리 상자형, 충돌은 박스 충돌
@@ -27,7 +27,7 @@
 - `npm run build:tiles` — 한국 추출본 다운로드 후 전국 건물 타일 생성 (osmium-tool 설치 필요, 다른 파일은 `npm run build:tiles -- 경로.osm.pbf`)
 - 시작 위치 변경: 주소 뒤에 `?ll=위도,경도`
 - `npm run dev` — 개발 서버
-- `npm test` — 높이 규칙·물리·도로 띠 자체 검사
+- `npm test` — 높이 규칙·물리·도로·조준·지형 보간 자체 검사
 
 ## 진행 현황
 - [x] 1단계: Vite+Three.js 초기화, 광화문 1km² 건물 fetch, 돌출 표시, 마우스/터치 카메라
@@ -37,3 +37,6 @@
 - [x] 4단계(임시 배포): GitHub Actions(`.github/workflows/deploy.yml`)가 서울 타일을 만들고 main 푸시 시 GitHub Pages에 배포. 실제 한국 추출본으로 빌드 성공 확인. 전국 확장 시 Cloudflare Pages + R2로 이전
 - [x] 5단계: 도로 — 타일에 `roads` 추가, 등급별 폭의 띠로 표시
 - 다음 후보: 지형(Terrarium), 전국 확장(Cloudflare 이전), 카메라 벽 통과 방지
+- [x] 6단계: 거미줄 조작 개선 — 스틱 방향 자동 조준, 걸 수 있는 지점 표시(벽의 점 + 버튼 색), 줄 감아 올리기, 공중 카메라 자동 추적
+- [x] 7단계: 지형(땅 메시, 건물 바닥·도로·플레이어가 고도를 따름), 카메라 벽 통과 방지, 도로를 타일 경계에서 분할, 배포를 전국 타일로 확대(압축 약 100MB)
+- 다음 후보: 군 부지 폴리곤 내부 건물 제외, Cloudflare Pages + R2 이전, 고가도로·다리 높이
