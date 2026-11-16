@@ -5,6 +5,7 @@ import { S, lonLatToTile } from './tile.js';
 import { createInput } from './input.js';
 import { createHero } from './hero.js';
 import { findAnchor } from './web.js';
+import { rayHit } from './collide.js';
 
 const WEB_RANGE = 150, STEP = 1 / 120, CAM_DIST = 9;
 
@@ -36,8 +37,8 @@ const ox = Math.floor(fx), oy = Math.floor(fy);
 const player = new Player([]);
 player.pos.set((fx - ox) * S, 50, (fy - oy) * S);
 let ready = false; // 시작 타일이 뜨기 전에는 물리를 멈춤
-const tiles = createTiles(scene, ox, oy, (boxes) => {
-  player.boxes = boxes;
+const tiles = createTiles(scene, ox, oy, (colliders) => {
+  player.colliders = colliders;
   if (!ready && (ready = true)) player.pos.y = tiles.groundAt(player.pos.x, player.pos.z) + 50;
 });
 player.groundAt = tiles.groundAt;
@@ -55,7 +56,7 @@ marker.renderOrder = 1;
 scene.add(marker);
 
 const move = new THREE.Vector3(), target = new THREE.Vector3();
-const camRay = new THREE.Ray(), camHit = new THREE.Vector3();
+const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web');
 let acc = 0, last = performance.now(), frame = 0, near = [];
 
@@ -69,7 +70,7 @@ renderer.setAnimationLoop((now) => {
   if (move.lengthSq() > 1) move.normalize();
 
   // 거미줄: 스틱을 민 방향(없으면 카메라 정면) 위쪽 건물을 자동 조준. 걸 수 있으면 표시하고, 버튼을 누르고 있으면 걸림
-  if (frame++ % 15 === 0) near = player.boxes.filter((b) => b.distanceToPoint(player.pos) < WEB_RANGE);
+  if (frame++ % 15 === 0) near = player.colliders.filter((c) => c.box.distanceToPoint(player.pos) < WEB_RANGE);
   const heading = move.lengthSq() > 0.09 ? Math.atan2(move.x, move.z) : Math.atan2(-sy, -cy);
   const cand = player.anchor ? null : findAnchor(player.pos, heading, near, WEB_RANGE);
   marker.visible = !!cand;
@@ -102,7 +103,7 @@ renderer.setAnimationLoop((now) => {
   camRay.origin.copy(target);
   camRay.direction.set(sy * cp, Math.sin(input.pitch), cy * cp);
   let dist = CAM_DIST;
-  for (const b of near) if (camRay.intersectBox(b, camHit)) dist = Math.min(dist, camHit.distanceTo(target) - 0.3);
+  for (const c of near) dist = Math.min(dist, rayHit(c, camRay) - 0.3);
   camera.position.copy(target).addScaledVector(camRay.direction, Math.max(dist, 1));
   camera.position.y = Math.max(camera.position.y, tiles.groundAt(camera.position.x, camera.position.z) + 0.5);
   camera.lookAt(target);

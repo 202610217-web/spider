@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Z, S } from './tile.js';
-import { ringToBox } from './player.js';
-import { addRibbon } from './roads.js';
+import { makeCollider } from './collide.js';
+import { addRibbon, densify } from './roads.js';
 import { N, tileHeights, heightAt } from './terrain.js';
 
 const BASE = import.meta.env.VITE_TILE_URL ?? import.meta.env.BASE_URL + 'data/tiles'; // 배포 시 R2 주소
@@ -15,8 +15,8 @@ const roadMat = new THREE.MeshBasicMaterial({ color: 0x4a4d52, side: THREE.Doubl
 
 // 플레이어 주변 타일만 불러오고 먼 타일은 해제. 월드 원점 = 타일 (ox, oy)의 북서쪽 모서리
 export function createTiles(scene, ox, oy, onChange) {
-  const loaded = new Map(); // "x/y" → { group, boxes, hgt } (로딩 중이면 null)
-  const boxes = () => [...loaded.values()].flatMap((t) => t?.boxes ?? []);
+  const loaded = new Map(); // "x/y" → { group, colliders, hgt } (로딩 중이면 null)
+  const colliders = () => [...loaded.values()].flatMap((t) => t?.colliders ?? []);
 
   async function load(tx, ty, key) {
     loaded.set(key, null);
@@ -28,7 +28,7 @@ export function createTiles(scene, ox, oy, onChange) {
     if (!loaded.has(key)) return; // 로딩 중 범위를 벗어남
     const off = new THREE.Vector3((tx - ox) * S, 0, (ty - oy) * S);
     // 지오메트리는 타일 기준 좌표, 그룹 위치만 옮김 → 원점에서 멀어져도 떨림 없음
-    const tile = { group: new THREE.Group(), boxes: [], hgt };
+    const tile = { group: new THREE.Group(), colliders: [], hgt };
     tile.group.position.copy(off);
 
     const ground = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2).translate(S / 2, 0, S / 2); // 꼭짓점 순서 = 고도 격자 순서
@@ -39,16 +39,15 @@ export function createTiles(scene, ox, oy, onChange) {
     if (buildings.length) {
       tile.group.add(new THREE.Mesh(mergeGeometries(buildings.map(({ h, ring }) => {
         const base = Math.min(...ring.map(([x, y]) => heightAt(hgt, x, -y))); // 바닥 = 둘레에서 가장 낮은 땅
-        const box = ringToBox(ring, h).translate(off);
-        box.min.y = base - SINK; box.max.y = base + h;
-        tile.boxes.push(box);
+        tile.colliders.push(makeCollider(ring, off, base - SINK, base + h));
         return new THREE.ExtrudeGeometry(new THREE.Shape(ring.map(([x, y]) => new THREE.Vector2(x, y))), { depth: h + SINK, bevelEnabled: false })
           .rotateX(-Math.PI / 2).translate(0, base - SINK, 0); // 바닥(x, 북) → (x, -z), 돌출 → +y
       })), mat));
     }
     if (roads.length) {
       const pos = [], idx = [];
-      for (const { w, line } of roads) addRibbon(pos, idx, line, w, (x, z) => heightAt(hgt, x, z) + 0.2);
+      // 6m마다 땅 높이를 따라가게 해서 도로가 땅속으로 끊겨 보이지 않게 함
+      for (const { w, line } of roads) addRibbon(pos, idx, densify(line, 6), w, (x, z) => heightAt(hgt, x, z) + 0.3);
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       g.setIndex(idx);
@@ -56,7 +55,7 @@ export function createTiles(scene, ox, oy, onChange) {
     }
     scene.add(tile.group);
     loaded.set(key, tile);
-    onChange(boxes());
+    onChange(colliders());
   }
 
   function update(pos) {
@@ -73,7 +72,7 @@ export function createTiles(scene, ox, oy, onChange) {
       loaded.delete(key);
       removed = true;
     }
-    if (removed) onChange(boxes());
+    if (removed) onChange(colliders());
   }
   // 월드 좌표의 땅 높이 (타일이 아직 없으면 0)
   function groundAt(x, z) {
