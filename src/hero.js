@@ -12,5 +12,8 @@ export function createHero() {
   const visor = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.08, 0.1), mat(0x3fe0c5));
   visor.position.set(0, 0.78, 0.21);
   g.add(body, belt, head, visor);
-  return g;
+  // 모델(발 -0.5 ~ 머리 1.0)을 키 1.8m로 키우고, 발이 충돌 구 바닥(-0.5)에 오게 올림
+  g.scale.setScalar(1.2);
+  g.position.y = 0.1;
+  return new THREE.Group().add(g);
 }

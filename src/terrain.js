@@ -38,8 +38,10 @@ export async function tileHeights(tx, ty) {
 }
 
 // 격자에서 타일 기준 (x 동쪽, z 남쪽) 위치의 고도. 타일 밖은 가장자리 값
+// 땅 메시(PlaneGeometry)와 같은 삼각형으로 보간해서 메시 표면과 정확히 일치
 export function heightAt(h, x, z) {
   const u = Math.min(Math.max((x / S) * N, 0), N), v = Math.min(Math.max((z / S) * N, 0), N);
   const i = Math.min(Math.floor(u), N - 1), j = Math.min(Math.floor(v), N - 1), fu = u - i, fv = v - j, k = j * (N + 1) + i;
-  return (h[k] * (1 - fu) + h[k + 1] * fu) * (1 - fv) + (h[k + N + 1] * (1 - fu) + h[k + N + 2] * fu) * fv;
+  const a = h[k], d = h[k + 1], b = h[k + N + 1], c = h[k + N + 2]; // a 북서, d 북동, b 남서, c 남동. 대각선은 b–d
+  return fu + fv <= 1 ? a + (d - a) * fu + (b - a) * fv : c + (b - c) * (1 - fu) + (d - c) * (1 - fv);
 }

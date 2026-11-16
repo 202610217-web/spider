@@ -4,8 +4,8 @@ export const ROAD_WIDTH = { // 도로 등급별 폭(m). 여기 없는 등급(보
   motorway_link: 8, trunk_link: 8, primary_link: 7, secondary_link: 6, tertiary_link: 6,
 };
 
-// 꼭짓점마다 앞뒤 방향의 수직으로 w/2씩 벌려 이어진 띠를 만듦. pos/idx 배열에 덧붙임 (y는 위, z = -북)
-// yAt(x, z): 그 지점의 땅 높이
+// 꼭짓점마다 앞뒤 방향의 수직으로 w/2씩 벌려 이어진 띠를 만듦 (왼쪽·가운데·오른쪽 3줄 — 넓은 도로도 땅 굴곡을 따라가게)
+// pos/idx 배열에 덧붙임 (y는 위, z = -북). yAt(x, z): 그 지점의 땅 높이
 export function addRibbon(pos, idx, line, w, yAt = () => 0) {
   const base = pos.length / 3, n = line.length;
   for (let i = 0; i < n; i++) {
@@ -13,8 +13,8 @@ export function addRibbon(pos, idx, line, w, yAt = () => 0) {
     const len = Math.hypot(bx - ax, by - ay) || 1;
     const nx = (-(by - ay) / len) * (w / 2), ny = ((bx - ax) / len) * (w / 2);
     const [x, y] = line[i];
-    pos.push(x + nx, yAt(x + nx, -(y + ny)), -(y + ny), x - nx, yAt(x - nx, -(y - ny)), -(y - ny));
-    if (i) { const k = base + i * 2; idx.push(k - 2, k - 1, k, k - 1, k + 1, k); }
+    for (const s of [1, 0, -1]) pos.push(x + nx * s, yAt(x + nx * s, -(y + ny * s)), -(y + ny * s));
+    if (i) { const k = base + i * 3; idx.push(k - 3, k - 2, k, k - 2, k + 1, k, k - 2, k - 1, k + 1, k - 1, k + 2, k + 1); }
   }
 }
 
