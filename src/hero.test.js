@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import * as THREE from 'three';
-import { createHero, heroState, rigModel } from './hero.js';
+import { createHero, heroState, rigModel, landingKind } from './hero.js';
 
 const P = (o) => ({ vel: new THREE.Vector3(), pos: new THREE.Vector3(), anchor: null, zipping: false, climbing: false, onGround: false, ...o });
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -32,6 +32,31 @@ for (let i = 0; i < 120; i++) hero.animate(P({ anchor: v(3, 30, 10), vel: v(0, -
 // 스윙: 쥔 손이 머리 위로, 걸린 곳 쪽(앞)으로 뻗음
 hero.hand.getWorldPosition(hand);
 assert.ok(hand.y > 0.9 && hand.z > 0, `스윙 손 위치 ${hand.toArray()}`);
+
+// 착지: 떨어지던 속도·수평 속도에 따라 다른 자세
+assert.equal(landingKind(-3, 0), null);
+assert.equal(landingKind(-8, 2), 'soft');
+assert.equal(landingKind(-15, 2), 'crouch');
+assert.equal(landingKind(-22, 2), 'hero');
+assert.equal(landingKind(-40, 2), 'impact');
+assert.equal(landingKind(-15, 9), 'roll');
+const h2 = createHero(), handR = v();
+for (let i = 0; i < 60; i++) h2.animate(P({ vel: v(0, -25, 0) }), 1 / 60, false); // 높은 데서 수직으로 떨어지다
+for (let i = 0; i < 18; i++) h2.animate(P({ onGround: true }), 1 / 60, false);   // 착지 0.3초 뒤
+assert.equal(h2.landing(), 'hero');
+h2.updateMatrixWorld(true);
+h2.traverse((o) => { if (o.isMesh && o.geometry.type === 'SphereGeometry' && o.position.y === -0.3 && o.parent.parent.position.x < 0) o.getWorldPosition(handR); });
+assert.ok(handR.y < -0.3, `영웅 착지: 오른손이 땅 가까이 ${handR.y}`);
+for (let i = 0; i < 60; i++) h2.animate(P({ onGround: true }), 1 / 60, false);
+assert.equal(h2.landing(), null, '착지 자세는 끝나면 풀림');
+// 경사: 오르막을 달리면 평지보다 앞으로 더 숙임
+const pitchOn = (ground) => {
+  const h = createHero();
+  for (let i = 0; i < 90; i++) h.animate({ ...P({ onGround: true, vel: v(0, 0, 8) }), groundAt: ground }, 1 / 60, false);
+  return h.children[0].rotation.x;
+};
+const flat = pitchOn(() => -0.5), upHill = pitchOn((x, z) => -0.5 + z * 0.4), downHill = pitchOn((x, z) => -0.5 - z * 0.4);
+assert.ok(upHill > flat + 0.1 && downHill < flat - 0.1, `경사: 오르막 ${upHill} 평지 ${flat} 내리막 ${downHill}`);
 
 // 뼈대 연결: A자 자세(팔이 45° 벌어짐, 뼈 자체도 돌아가 있음)인 가짜 뼈대에서 자세 값 0 → 팔다리가 똑바로 아래로, 팔꿈치 -90° → 팔뚝이 앞(+z)으로
 const bone = (name, parent, x, y, z, rz = 0) => { const o = new THREE.Bone(); o.name = name; o.position.set(x, y, z); o.rotation.z = rz; parent.add(o); return o; };

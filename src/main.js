@@ -28,6 +28,7 @@ const maxRatio = Math.min(devicePixelRatio, document.body.classList.contains('to
 renderer.setPixelRatio(maxRatio);
 renderer.toneMapping = THREE.ACESFilmicToneMapping; // 하늘(대기 산란)의 밝은 빛과 그늘을 함께 담음. 밝기는 시간대별 노출로
 renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // 그림자 가장자리를 부드럽게
 renderer.shadowMap.autoUpdate = false; // 해와 건물은 안 움직이므로 그림자 지도는 자리를 옮길 때만 다시 그림
 document.body.appendChild(renderer.domElement);
 
@@ -55,6 +56,27 @@ const stars = new THREE.Points(
   new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }),
 );
 scene.add(stars);
+// 박명·밤하늘: 대기 산란 하늘은 해가 지면 금방 새까매지므로, 지평선은 남은 노을빛·위는 짙은 남색인 그라데이션을 더해 줌
+const twilight = new THREE.Mesh(new THREE.SphereGeometry(470, 24, 12), new THREE.ShaderMaterial({
+  uniforms: { horizon: { value: new THREE.Color() }, zenith: { value: new THREE.Color() }, strength: { value: 0 } },
+  vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: 'uniform vec3 horizon; uniform vec3 zenith; uniform float strength; varying vec3 vDir; void main() { float h = pow(clamp(vDir.y, 0.0, 1.0), 0.45); gl_FragColor = vec4(mix(horizon, zenith, h) * strength, 1.0);\n#include <colorspace_fragment>\n}', // 색은 선형으로 계산하고 화면 색 공간(sRGB)으로 바꿔 냄
+  side: THREE.BackSide, blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, // transparent: 불투명한 하늘(Sky)을 그린 뒤에 더해지게
+}));
+scene.add(twilight);
+// 달: 둥근 원판과 은은한 달무리 (해의 반대쪽 하늘). 크기는 보기 좋게 실제보다 크게
+const glowTexture = (inner, outer) => {
+  const c = Object.assign(document.createElement('canvas'), { width: 128, height: 128 }), x = c.getContext('2d'), g = x.createRadialGradient(64, 64, 0, 64, 64, 64);
+  g.addColorStop(0, inner); g.addColorStop(outer, inner); g.addColorStop(Math.min(1, outer + 0.06), 'rgba(255,255,255,0)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+};
+const moon = new THREE.Group();
+for (const [size, tex, opacity] of [[34, glowTexture('#f4f1e6', 0.42), 1], [150, glowTexture('rgba(190,205,255,0.5)', 0.05), 0.6]]) {
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false, fog: false, toneMapped: false, opacity }));
+  sp.scale.setScalar(size); moon.add(sp);
+}
+scene.add(moon);
 
 // 시각: ?time=시(예 18.5) 가 있으면 그때부터, 없으면 기기의 지금 시각부터. 실제 1분 = 게임 1시간
 const startHour = Number(new URLSearchParams(location.search).get('time') ?? NaN), started = performance.now(), today = new Date();
@@ -66,7 +88,8 @@ let light;
 function updateDaylight(now) {
   const hour = (hour0 + ((now - started) / 60000) * HOURS_PER_MINUTE) % 24;
   const s = sunDirection(hour, dayOfYear, lat);
-  light = daylight((Math.asin(s[1]) * 180) / Math.PI);
+  const elev = (Math.asin(s[1]) * 180) / Math.PI;
+  light = daylight(elev);
   sky.material.uniforms.sunPosition.value.set(...s);
   sky.material.uniforms.time.value = now / 1000;
   hemi.color.setHex(light.sky); hemi.groundColor.setHex(light.ground); hemi.intensity = light.hemi;
@@ -76,7 +99,16 @@ function updateDaylight(now) {
   lightDir.normalize();
   scene.fog.color.setHex(light.fog); scene.background.setHex(light.fog);
   renderer.toneMappingExposure = light.exposure;
-  stars.material.opacity = light.night;
+  stars.material.opacity = Math.max(0, light.night - 0.5) * 2; // 별은 하늘이 충분히 어두워진 뒤에
+  // 박명: 해가 지평선 아래 0~18°일 때 지평선 쪽에 노을빛이 남고, 깊은 밤에는 남색만
+  const dusk = THREE.MathUtils.clamp(1 - Math.abs(elev + 4) / 8, 0, 1); // 해가 지평선 아래 4°쯤일 때 가장 진함(시민 박명)
+  twilight.material.uniforms.horizon.value.setHex(light.fog).multiplyScalar(0.35 + 0.65 * dusk);
+  twilight.material.uniforms.zenith.value.setHex(0x06102a).lerp(new THREE.Color(0x1e2f66), dusk);
+  twilight.material.uniforms.strength.value = Math.max(light.night * 0.8, dusk);
+  const md = sunDirection(hour + 12, dayOfYear, lat); // 달은 해의 반대쪽 하늘
+  moon.position.set(md[0] * 440, md[1] * 440, md[2] * 440);
+  moon.visible = md[1] > -0.05;
+  moon.children.forEach((c) => (c.material.opacity = (c === moon.children[0] ? 1 : 0.6) * Math.min(1, light.night * 1.4)));
   for (const m of buildingMaterials().walls) m.emissiveIntensity = light.night * 0.7; // 밤에는 창문에 불이 켜짐
   const h = Math.floor(hour), m = Math.floor((hour - h) * 60);
   clockEl.textContent = `${h < 12 ? '오전' : '오후'} ${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}`;
@@ -219,7 +251,7 @@ renderer.setAnimationLoop((now) => {
   // 빠를수록 시야각을 넓혀 속도감을 줌
   camera.fov += (FOV + Math.min(25, player.vel.length() * 0.45) - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
-  sky.position.copy(camera.position); stars.position.copy(camera.position); // 하늘은 늘 멀리 있게
+  sky.position.copy(camera.position); stars.position.copy(camera.position); twilight.position.copy(camera.position); moon.position.add(camera.position); // 하늘은 늘 멀리 있게 (달 위치는 updateDaylight가 매 프레임 카메라 기준으로 다시 정함)
   if (frame % 12 === 0) {
     drawMinimap(player, hero.rotation.y);
     const [lo, la] = tileToLonLat(ox + player.pos.x / S, oy + player.pos.z / S);
