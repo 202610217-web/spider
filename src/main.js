@@ -9,6 +9,7 @@ import { findAnchor } from './web.js';
 import { rayHit } from './collide.js';
 import { createMinimap } from './minimap.js';
 import { setupSearch } from './search.js';
+import { watchRegion } from './region.js';
 
 const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
@@ -78,6 +79,7 @@ const move = new THREE.Vector3(), target = new THREE.Vector3();
 const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
 const posEl = document.getElementById('pos');
+const updateRegion = watchRegion((name) => (posEl.textContent = name)); // 미니맵 아래에 "서울특별시 종로구"처럼 표시
 const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
 setupSearch(document.getElementById('q'), document.getElementById('results'), document.getElementById('status'));
 let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
@@ -160,7 +162,7 @@ renderer.setAnimationLoop((now) => {
   if (frame % 12 === 0) {
     drawMinimap(player, hero.rotation.y);
     const [lo, la] = tileToLonLat(ox + player.pos.x / S, oy + player.pos.z / S);
-    posEl.textContent = `위도 ${la.toFixed(5)}\n경도 ${lo.toFixed(5)}\n해발 ${Math.round(player.pos.y - 0.5)}m`; // 0.5: 발 높이 = 중심 - 충돌 구 반지름
+    updateRegion(player.pos.x, player.pos.z, la, lo, now);
   }
   renderer.render(scene, camera);
 });

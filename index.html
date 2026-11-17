@@ -11,7 +11,8 @@
     .tbtn { display: none; position: fixed; bottom: 30px; width: 72px; height: 72px; border-radius: 50%; border: 0; background: #fff8; font: 14px sans-serif; touch-action: none; user-select: none; }
     #btn-web.ready, #btn-zip.ready { background: #3fe0c5; }
     #minimap { position: fixed; right: 8px; top: 8px; width: 150px; height: 150px; border-radius: 8px; border: 2px solid #fff8; pointer-events: none; }
-    #pos { position: fixed; right: 8px; top: 166px; width: 154px; box-sizing: border-box; font: 11px sans-serif; text-align: center; white-space: pre; background: #fffc; padding: 3px 4px; border-radius: 6px; pointer-events: none; }
+    #pos { position: fixed; right: 8px; top: 166px; width: 154px; box-sizing: border-box; font: 13px sans-serif; text-align: center; background: #fffc; padding: 4px 6px; border-radius: 6px; pointer-events: none; }
+    #pos:empty { display: none; }
     #search { position: fixed; left: 6px; top: 30px; width: min(300px, calc(100vw - 180px)); font: 15px sans-serif; color: #1f2a44; }
     #q { box-sizing: border-box; width: 100%; font: inherit; padding: 8px 12px; border-radius: 10px; border: 2px solid transparent; background: #fffd; box-shadow: 0 2px 8px #0003; }
     #q:focus { outline: 0; border-color: #3fe0c5; background: #fff; }
