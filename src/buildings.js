@@ -22,13 +22,14 @@ export function buildingGeometries(buildings, baseOf, sink) {
     const l = Math.hypot(nx, ny, nz) || 1;
     for (const [p, u] of [[a, ua], [b, ub], [c, uc]]) { out.pos.push(...p); out.nor.push(nx / l, ny / l, nz / l); out.uv.push(u[0] / 2, u[1] / 2); out.col.push(color.r, color.g, color.b); }
   };
-  for (const { h, s = 2, ring } of buildings) {
+  for (const { h, s = 2, ring, d, c, rc, p } of buildings) {
     const base = baseOf(ring);
     const seed = Math.abs(Math.round(ring[0][0] * 7 + ring[0][1] * 13 + h)); // 같은 건물은 늘 같은 디자인·색
-    const look = (LOOKS[s] ?? LOOKS[2])[Math.floor(hash(seed) / 7) % 3]; // 색 고르기(seed % 색 수)와 엇갈리게 /7
+    const look = (LOOKS[s] ?? LOOKS[2])[d ?? Math.floor(hash(seed) / 7) % 3]; // d: 정보로 정한 디자인(없으면 자리로, 색 고르기와 엇갈리게 /7)
+    const wallColor = c ?? pick(look.wall, seed), roofColor = rc ?? pick(look.roof, seed); // c·rc: OSM 색 태그
     // 경사 지붕: 바닥이 사각형인 전통 건물·공장·낮은 주택(절반). 용마루 높이가 h, 벽은 처마(h - rh)까지
     let rh = 0;
-    if (ring.length === 5 && (s === 5 || s === 4 || (s === 0 && h <= 9 && seed % 2 === 0))) {
+    if (ring.length === 5 && (p ?? (s === 5 || s === 4 || (s === 0 && h <= 9 && seed % 2 === 0)))) { // p: OSM 지붕 모양 태그(1 경사, 0 평지붕)
       const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]), k = len(ring[0], ring[1]) >= len(ring[1], ring[2]) ? 0 : 1;
       const P = [0, 1, 2, 3].map((i) => ring[(i + k) % 4]), long = len(P[0], P[1]), short = len(P[1], P[2]);
       rh = Math.min(short * (s === 4 ? 0.15 : 0.35), 3, h * 0.4);
@@ -36,7 +37,7 @@ export function buildingGeometries(buildings, baseOf, sink) {
       const [a, b, c, d] = P.map(([x, y]) => [x, y0, -y]); // 처마 네 귀
       const m1 = [(P[1][0] + P[2][0]) / 2, y1, -(P[1][1] + P[2][1]) / 2], m0 = [(P[3][0] + P[0][0]) / 2, y1, -(P[3][1] + P[0][1]) / 2]; // 용마루 양 끝
       const out = (pitched[s === 4 ? 1 : 0] ??= buf());
-      color.set(pick(s === 0 ? GABLE : look.roof, seed));
+      color.set(rc ?? pick(s === 0 ? GABLE : look.roof, seed));
       tri(out, a, b, m1, [0, 0], [long, 0], [long, slope]); tri(out, a, m1, m0, [0, 0], [long, slope], [0, slope]);
       tri(out, c, d, m0, [0, 0], [long, 0], [long, slope]); tri(out, c, m0, m1, [0, 0], [long, slope], [0, slope]);
       tri(out, b, c, m1, [0, 0], [short, 0], [short / 2, rh]); tri(out, d, a, m0, [0, 0], [short, 0], [short / 2, rh]); // 박공(삼각 벽)
@@ -49,7 +50,7 @@ export function buildingGeometries(buildings, baseOf, sink) {
       const out = i < caps ? roof : w;
       out.pos.push(position.getX(i), position.getY(i), position.getZ(i));
       out.nor.push(normal.getX(i), normal.getY(i), normal.getZ(i));
-      color.set(pick(i < caps ? look.roof : look.wall, seed));
+      color.set(i < caps ? roofColor : wallColor);
       out.col.push(color.r, color.g, color.b);
       if (i < caps) roof.uv.push(position.getX(i) / FLOOR, position.getZ(i) / FLOOR); // 옥상 무늬는 위에서 본 위치 기준
       else w.uv.push(uv.getX(i) / FLOOR, uv.getY(i) / FLOOR); // ExtrudeGeometry의 벽 uv는 미터 단위(가로 위치, 높이)

@@ -170,6 +170,7 @@ const updateRegion = watchRegion((name) => (regionEl.textContent = name));
 const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
 setupSearch(document.getElementById('q'), document.getElementById('results'), document.getElementById('status'));
 const inMenu = setupMenu();
+if (import.meta.env.VITE_GIS) document.getElementById('attr').insertAdjacentText('beforeend', ' · 건물 국토교통부 GIS건물통합정보(공공누리 제1유형)');
 let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
 
 renderer.setAnimationLoop((now) => {

@@ -59,3 +59,22 @@ export const LOOKS = [
     { tex: 0, wall: [0xc9a27a, 0xb8916c], roof: [0x3a3d42] },                                 // 황토 벽돌 + 기와
   ],
 ];
+
+// 디자인(LOOKS[유형]의 0~2)을 정보로 고름. 정보가 없으면 undefined → 게임이 건물 자리로 고름
+// 사용승인 연도(start_date)와 재료(building:material)는 GIS건물통합정보(건축물대장)나 OSM 태그에서 옴
+export function designOf(tags = {}, s, h) {
+  const year = parseInt(tags.start_date, 10), brick = tags['building:material'] === 'brick';
+  if (s === 0) return brick || year < 1990 ? 0 : year < 2005 ? 1 : year >= 2005 ? 2 : undefined; // 주택·빌라: 옛 붉은 벽돌 → 크림색 미장 → 요즘 회갈색
+  if (s === 1) return year < 1995 ? 1 : year >= 2010 && h >= 90 ? 2 : year >= 1995 ? 0 : undefined; // 아파트: 옛 단지 → 흰 띠창 → 초고층 유리
+  if (s === 2 && brick) return 1; // 붉은 벽돌 학교·관공서
+  return undefined;
+}
+
+// OSM 색 태그(building:colour, roof:colour: 이름이나 #rrggbb) → 0xrrggbb, 모르는 값이면 undefined
+const NAMED = { white: 0xf2f2ee, black: 0x2a2a2a, grey: 0x9a9a96, gray: 0x9a9a96, red: 0xb5483a, brown: 0x8a5a3c, beige: 0xe0d2b4, yellow: 0xe6c85a, orange: 0xd98a3c, blue: 0x4a6fa5, green: 0x4a8a5a, silver: 0xc0c4c8, maroon: 0x7a2e2a, tan: 0xc8a882, cream: 0xf0e6cc, pink: 0xe0a0a8, purple: 0x7a5a9a };
+export function colourOf(v) {
+  if (!v) return undefined;
+  const m = /^#?([0-9a-f]{6}|[0-9a-f]{3})$/i.exec(String(v).trim());
+  if (m) return parseInt(m[1].length === 3 ? m[1].replace(/./g, (c) => c + c) : m[1], 16);
+  return NAMED[String(v).trim().toLowerCase()];
+}

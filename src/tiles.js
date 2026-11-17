@@ -6,9 +6,11 @@ import { addRibbon, densify } from './roads.js';
 import { street, nearestRoad, along } from './street.js';
 import { N, tileHeights, heightAt } from './terrain.js';
 import { decode } from './land.js';
+import { readTile } from './tiledata.js';
 import { buildingGeometries, buildingMaterials, surface } from './buildings.js';
 
 const BASE = import.meta.env.VITE_TILE_URL || import.meta.env.BASE_URL + 'data/tiles'; // VITE_TILE_URL: R2 공개 주소
+const EXT = import.meta.env.VITE_TILE_URL ? '.json' : '.json.gz'; // 사이트에는 gzip 파일 그대로, R2는 Content-Encoding으로 브라우저가 풂
 const LOAD = 1, KEEP = 2; // 주변 3×3 타일 로드, 5×5 밖은 해제
 const SINK = 8; // 경사지에서 건물 밑이 뜨지 않게 땅속으로 내리는 깊이(m)
 const CLEAR = 8, RAMP = 60; // 다리: 땅(강바닥)에서 8m 위, 일반 도로와 만나는 곳에서 60m에 걸쳐 올라감
@@ -91,7 +93,7 @@ export function createTiles(scene, ox, oy, onChange) {
     loaded.set(key, null);
     // 타일 없음(바다·빈 땅) 또는 개발 서버의 HTML 응답 → 빈 타일
     const [{ buildings = [], roads = [], water = [], cross = [], lights = [], land }, hgt] = await Promise.all([
-      fetch(`${BASE}/${Z}/${key}.json`).then((r) => r.json()).catch(() => ({})),
+      fetch(`${BASE}/${Z}/${key}${EXT}`).then(readTile).catch(() => ({})),
       tileHeights(tx, ty),
     ]);
     // shortcut: 건물이 아주 많은 타일 하나는 여전히 한 프레임에 만들어 잠깐 끊길 수 있음, 눈에 띄면 워커로 옮기기

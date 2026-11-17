@@ -1,4 +1,5 @@
 // OSM 추출본(.osm.pbf) → 타일별 건물·도로·물·횡단보도·신호등 JSON (public/data/tiles/15/x/y.json)
+// data/gis.ndjson이 있으면(scripts/fetch-gis.sh, 국토교통부 GIS건물통합정보) 그 건물을 먼저 넣고, OSM·Overture는 겹치지 않는 것만 더함
 // data/overture.ndjson이 있으면(scripts/fetch-overture.sh) OSM에 없는 건물을 더함
 // 사용: node scripts/build-tiles.js [입력.osm.pbf]   (osmium-tool 필요)
 // 좌표는 타일 북서쪽 모서리 기준 미터: [동쪽, 북쪽(음수)]
@@ -6,7 +7,8 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, createReadStream } from 'node:fs';
 import { buildingHeight } from '../src/height.js';
-import { buildingStyle } from '../src/style.js';
+import { buildingStyle, designOf, colourOf } from '../src/style.js';
+import { gzipSync } from 'node:zlib';
 import { Z, S, lonLatToTile } from '../src/tile.js';
 import { ROAD_WIDTH, densify } from '../src/roads.js';
 import { inside } from '../src/collide.js';
@@ -57,7 +59,7 @@ const exit = new Promise((r) => osmium.on('close', r));
 const tiles = new Map(); // "x/y" → { buildings, roads, water: JSON 문자열[], cross·lights: 횡단보도·신호등 [동, 북][] }
 const tile = (key) => tiles.get(key) ?? tiles.set(key, { buildings: [], roads: [], water: [], cross: [], lights: [], box: [] }).get(key); // box: 건물 외곽 상자(겹침 검사용)
 const meters = (tx, ty) => ([fx, fy]) => [+((fx - tx) * S).toFixed(1), +(-(fy - ty) * S).toFixed(1)];
-const count = { buildings: 0, roads: 0, water: 0, cross: 0, lights: 0, bridges: 0 };
+const count = { gis: 0, buildings: 0, roads: 0, water: 0, cross: 0, lights: 0, bridges: 0 };
 const lands = new Map(); // "x/y" → 땅 덮개 칸 Uint8Array(LAND²)
 const landGrid = (key) => lands.get(key) ?? lands.set(key, new Uint8Array(LAND * LAND)).get(key);
 let skipped = 0;
@@ -69,18 +71,28 @@ function put(kind, pts, props) {
 }
 // 건물을 첫 점이 속한 타일에 넣음. extra(Overture에서 더하는 건물)는 이미 있는 건물과 겹치면 빼고, 높이 정보가 없으면 바닥 넓이로 추정
 // shortcut: 겹침은 같은 타일 안에서 "중심이 다른 건물의 외곽 상자 안"으로만 봄 — 비스듬한 건물 옆 건물이 가끔 빠짐, 눈에 띄면 다각형 검사로
-function putBuilding(pts, tags, extra) {
+// 건물을 첫 점이 속한 타일에 넣음. mode: 'gis'(공식, 가장 먼저) · 'osm' · 'overture'
+// 먼저 들어간 건물과 겹치면 뺌(Overture는 늘, OSM은 공식 데이터가 있을 때), Overture는 높이 정보가 없으면 바닥 넓이로 추정
+// shortcut: 겹침은 같은 타일 안에서 "중심이 다른 건물의 외곽 상자 안"으로만 봄 — 비스듬한 건물 옆 건물이 가끔 빠짐, 눈에 띄면 다각형 검사로
+const ROOF_PITCHED = new Set(['gabled', 'hipped', 'pyramidal', 'half-hipped', 'gambrel', 'mansard', 'saltbox']);
+function putBuilding(pts, tags, mode = 'osm') {
   const tx = Math.floor(pts[0][0]), ty = Math.floor(pts[0][1]), t = tile(`${tx}/${ty}`), ring = pts.map(meters(tx, ty));
   const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
   const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), a = area(ring);
-  if (extra) {
-    if (a < 20) return false; // 자동 추출 잡음
+  if (mode === 'overture' && a < 20) return false; // 자동 추출 잡음
+  if (mode === 'overture' || (mode === 'osm' && count.gis > 0)) {
     const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
     for (let i = 0; i < t.box.length; i += 4) if (cx >= t.box[i] && cx <= t.box[i + 2] && cy >= t.box[i + 1] && cy <= t.box[i + 3]) return false;
   }
   t.box.push(x0, y0, x1, y1);
-  const h = buildingHeight(tags, extra ? a : undefined, pts[0]);
-  t.buildings.push(JSON.stringify({ h, s: buildingStyle(tags, h, a), ring }));
+  const h = buildingHeight(tags, mode === 'overture' ? a : undefined, pts[0]), s = buildingStyle(tags, h, a);
+  // 건물마다 다른 모습: 사용승인 연도·재료로 디자인, OSM 색 태그로 벽·지붕 색, 지붕 모양 태그로 경사 지붕 여부
+  const b = { h, s, ring }, d = designOf(tags, s, h), c = colourOf(tags['building:colour']), rc = colourOf(tags['roof:colour']), shape = tags['roof:shape'];
+  if (d !== undefined) b.d = d;
+  if (c !== undefined) b.c = c;
+  if (rc !== undefined) b.rc = rc;
+  if (shape) b.p = ROOF_PITCHED.has(shape) ? 1 : 0;
+  t.buildings.push(JSON.stringify(b));
   count.buildings++;
   return true;
 }
@@ -95,6 +107,14 @@ function putRoad(coords, w, b) {
   }
   flush();
 }
+// 공식 건물(국토교통부 GIS건물통합정보)을 OSM보다 먼저 넣음 → OSM·Overture는 그와 겹치지 않는 것만 들어감
+if (existsSync('data/gis.ndjson')) for await (const line of createInterface({ input: createReadStream('data/gis.ndjson') })) {
+  if (!line) continue;
+  const { c, t } = JSON.parse(line), pts = c.map(([lon, lat]) => lonLatToTile(lon, lat));
+  if (pts.length < 4 || pts.some(inMilitary)) { skipped++; continue; }
+  if (putBuilding(pts, t, 'gis')) count.gis++;
+}
+
 for await (const line of createInterface({ input: osmium.stdout })) {
   if (!line) continue;
   const { properties: t, geometry: g } = JSON.parse(line);
@@ -141,7 +161,7 @@ if (existsSync(EXTRA)) for await (const line of createInterface({ input: createR
   const { h, f, c } = JSON.parse(line);
   const pts = c.map(([lon, lat]) => lonLatToTile(lon, lat));
   if (pts.length < 4 || pts.some(inMilitary)) { skipped++; continue; }
-  if (putBuilding(pts, { height: h, 'building:levels': f }, true)) added++; else dup++;
+  if (putBuilding(pts, { height: h, 'building:levels': f }, 'overture')) added++; else dup++;
 }
 
 rmSync(OUT, { recursive: true, force: true });
@@ -153,6 +173,7 @@ for (const [key, t] of tiles) {
   const snap = (pts) => pts.map(([x, y]) => [x, y, nearestRoad(roads, x, y)]).filter(([, , n]) => n.d <= 3).map(([x, y, n]) => [x, y, +n.ang.toFixed(2), n.w]);
   const cross = snap(t.cross), lights = snap(t.lights);
   count.cross += cross.length; count.lights += lights.length;
-  writeFileSync(`${OUT}/${Z}/${key}.json`, `{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)},"lights":${JSON.stringify(lights)}${lands.has(key) ? `,"land":${JSON.stringify(encode(lands.get(key)))}` : ''}}`);
+  // gzip으로 줄여 저장(배포 용량 한도 1GB) — 게임이 받아서 풂(src/tiles.js). R2에는 이름만 .json으로 바꿔 올림(scripts/upload-r2.sh)
+  writeFileSync(`${OUT}/${Z}/${key}.json.gz`, gzipSync(`{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)},"lights":${JSON.stringify(lights)}${lands.has(key) ? `,"land":${JSON.stringify(encode(lands.get(key)))}` : ''}}`, { level: 9 }));
 }
-console.log(`땅 덮개 타일 ${lands.size}개, 건물 ${count.buildings}개(그중 Overture 추가 ${added}개, 겹치거나 너무 작아 뺀 것 ${dup}개), 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);
+console.log(`땅 덮개 타일 ${lands.size}개, 건물 ${count.buildings}개(그중 공식 GIS ${count.gis}개)(그중 Overture 추가 ${added}개, 겹치거나 너무 작아 뺀 것 ${dup}개), 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);

@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: sudo apt-get update && sudo apt-get install -y osmium-tool
+      - run: sudo apt-get update && sudo apt-get install -y osmium-tool gdal-bin
       - run: npm ci
       - run: npm test
       # 추출본은 캐시 (새 지도 데이터가 필요하면 키의 v1을 올림)
@@ -38,6 +38,22 @@ jobs:
           key: overture-v1
       - run: scripts/fetch-overture.sh
         timeout-minutes: 90
+      # 공식 건물(국토교통부 GIS건물통합정보): 릴리스 'gis-buildings'에 올린 브이월드 ZIP이 바뀔 때만 다시 변환
+      - id: gis-key
+        run: echo "key=gis-$(gh release view gis-buildings --json assets --jq '[.assets[] | .name + ":" + (.size | tostring)] | join(",")' 2>/dev/null | sha1sum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+      - uses: actions/cache@v4
+        with:
+          path: data/gis.ndjson
+          key: ${{ steps.gis-key.outputs.key }}
+      - id: gis
+        run: |
+          scripts/fetch-gis.sh
+          echo "present=$([ -s data/gis.ndjson ] && echo 1)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ github.token }}
+        timeout-minutes: 90
       - name: 전국 타일 생성
         run: |
           mkdir -p data
@@ -50,6 +66,7 @@ jobs:
         env:
           VITE_TILE_URL: ${{ vars.TILE_URL }} # 비어 있으면 사이트에 함께 올린 타일을 읽음
           VITE_KAKAO_KEY: ${{ vars.KAKAO_JS_KEY }} # 카카오 JavaScript 키(도메인 제한). 비어 있으면 장소 검색은 OSM을 씀
+          VITE_GIS: ${{ steps.gis.outputs.present }} # 공식 건물 데이터를 넣었으면 출처 표기를 더함
       - uses: actions/upload-pages-artifact@v3
         if: github.ref == 'refs/heads/main' # 브랜치 빌드는 배포하지 않으므로 올리지 않음
         with:
