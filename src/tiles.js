@@ -5,6 +5,7 @@ import { makeCollider, inside } from './collide.js';
 import { addRibbon, densify } from './roads.js';
 import { street, nearestRoad, along } from './street.js';
 import { N, tileHeights, heightAt } from './terrain.js';
+import { decode } from './land.js';
 import { buildingGeometries, buildingMaterials, surface } from './buildings.js';
 
 const BASE = import.meta.env.VITE_TILE_URL || import.meta.env.BASE_URL + 'data/tiles'; // VITE_TILE_URL: R2 공개 주소
@@ -12,6 +13,7 @@ const LOAD = 1, KEEP = 2; // 주변 3×3 타일 로드, 5×5 밖은 해제
 const SINK = 8; // 경사지에서 건물 밑이 뜨지 않게 땅속으로 내리는 깊이(m)
 const CLEAR = 8, RAMP = 60; // 다리: 땅(강바닥)에서 8m 위, 일반 도로와 만나는 곳에서 60m에 걸쳐 올라감
 const PAVED = new THREE.Color(0xb4b4ae), GREEN = new THREE.Color(0x6f8a5a), tint = new THREE.Color();
+const LAND_COLOR = [null, 0xa3a06a, 0x7c9c58, 0x4d6b3d].map((c) => c && new THREE.Color(c)); // 땅 덮개: 논밭, 풀밭·공원, 숲
 // 바닥에 겹쳐 까는 것들: 깜빡이지 않게 위에 놓일수록 깊이를 더 당김 (물 < 인도 < 도로 < 차선)
 const flat = (opts, order) => new THREE.MeshLambertMaterial({ ...opts, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -order, polygonOffsetUnits: -order });
 // 물결 노멀맵: 방향·주기가 다른 사인파 몇 개를 더한 높이의 기울기 (가장자리가 이어지게 정수 주기만)
@@ -88,7 +90,7 @@ export function createTiles(scene, ox, oy, onChange) {
   async function load(tx, ty, key) {
     loaded.set(key, null);
     // 타일 없음(바다·빈 땅) 또는 개발 서버의 HTML 응답 → 빈 타일
-    const [{ buildings = [], roads = [], water = [], cross = [], lights = [] }, hgt] = await Promise.all([
+    const [{ buildings = [], roads = [], water = [], cross = [], lights = [], land }, hgt] = await Promise.all([
       fetch(`${BASE}/${Z}/${key}.json`).then((r) => r.json()).catch(() => ({})),
       tileHeights(tx, ty),
     ]);
@@ -105,8 +107,11 @@ export function createTiles(scene, ox, oy, onChange) {
     ground.computeVertexNormals();
     // 평평한 곳은 포장된 도시 바닥(회색), 비탈은 산(녹색). 무늬는 6m마다 반복
     const { normal, uv } = ground.attributes, col = new Float32Array(hgt.length * 3);
+    const cover = land && decode(land); // land 격자 칸 수 = 지형 격자 칸 수(N)
     for (let i = 0; i < hgt.length; i++) {
-      tint.lerpColors(PAVED, GREEN, THREE.MathUtils.clamp((0.995 - normal.getY(i)) / 0.03, 0, 1)).toArray(col, i * 3);
+      // 땅 덮개(숲·공원·논밭)가 있으면 그 색, 없으면 평평한 곳은 포장(회색)·비탈은 산(녹색). 꼭짓점 (i, j) → 칸 (i, j) (가장자리는 안쪽 칸)
+      const k = cover ? cover[Math.min(Math.floor(i / (N + 1)), N - 1) * N + Math.min(i % (N + 1), N - 1)] : 0;
+      (k ? tint.copy(LAND_COLOR[k]) : tint.lerpColors(PAVED, GREEN, THREE.MathUtils.clamp((0.995 - normal.getY(i)) / 0.03, 0, 1))).toArray(col, i * 3);
       uv.setXY(i, (uv.getX(i) * S) / 6, (uv.getY(i) * S) / 6);
     }
     ground.setAttribute('color', new THREE.BufferAttribute(col, 3));

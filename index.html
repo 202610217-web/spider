@@ -23,12 +23,50 @@
     #results small { color: #5b6478; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #status { padding: 8px 12px; color: #5b6478; }
     @media (pointer: coarse) { #search { top: 8px; } }
+    /* 메인 화면 (피그마 'Main screen — liquid glass'): 뒤에 실제 게임 화면이 흐릿하게 비치는 유리 패널 */
+    .glass { background: linear-gradient(#ffffff42, #ffffff1a); border: 1.5px solid #ffffff80; box-shadow: inset 0 2px 3px #ffffff8c, 0 18px 48px #0d1f4047; -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6); }
+    #menu { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 12px; overflow-y: auto; font: 16px system-ui, sans-serif; color: #fff;
+      background: radial-gradient(60% 50% at 10% 0%, #3fe0c566, transparent), radial-gradient(50% 45% at 95% 5%, #ffffff55, transparent), linear-gradient(#1c4fb0b3, #2a63b866 55%, #1f2a4480); }
+    body.menu #menu { display: flex; }
+    body.menu #hud, body.menu #minimap, body.menu #pos, body.menu .tbtn { display: none; }
+    #panel { box-sizing: border-box; width: min(620px, 100%); margin: auto; padding: 44px 48px 40px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; text-shadow: 0 1px 6px #0d1f4066; }
+    #panel .badge { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; box-shadow: inset 0 2px 3px #ffffff8c; }
+    #panel .badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #3fe0c5; }
+    #panel h1 { margin: 0; font-size: clamp(56px, 15vw, 96px); line-height: 1; font-weight: 800; letter-spacing: 0.06em; text-shadow: 0 6px 18px #0d265959; }
+    #panel p { margin: 0; font-size: 18px; }
+    #chips { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
+    #chips button { padding: 9px 16px; border-radius: 999px; font: 500 15px system-ui, sans-serif; color: #fff; cursor: pointer; box-shadow: inset 0 2px 3px #ffffff8c; text-shadow: inherit; }
+    #chips button:hover, #chips button:focus-visible { background: #ffffff59; outline: 0; }
+    #start { width: 100%; padding: 20px; border-radius: 26px; border: 1.5px solid #ffffffb3; background: linear-gradient(#6ff0da, #2fcdb2); box-shadow: inset 0 2px 4px #ffffffb3, 0 12px 28px #1abfa680; font: 700 22px system-ui, sans-serif; color: #0e2a3a; cursor: pointer; transition: transform 0.15s; }
+    #start:hover { transform: translateY(-2px); } #start:active { transform: scale(0.98); }
+    #start:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+    #panel .help { font-size: 13px; opacity: 0.9; }
+    /* 메인 화면 안에서는 검색창도 유리 */
+    body.menu #search { position: relative; left: 0; top: 0; width: 100%; text-align: left; text-shadow: none; }
+    body.menu #q { padding: 16px 20px; border-radius: 22px; font-size: 17px; color: #fff; border: 1.5px solid #ffffff80; background: linear-gradient(#ffffff5c, #ffffff33); box-shadow: inset 0 2px 3px #ffffff8c; }
+    body.menu #q::placeholder { color: #ffffffd9; }
+    body.menu #q:focus { border-color: #6ff0da; background: linear-gradient(#ffffff73, #ffffff40); }
+    body.menu #results, body.menu #status { position: absolute; left: 0; right: 0; z-index: 1; }
+    @media (max-width: 520px) { #panel { padding: 32px 22px 28px; border-radius: 30px; gap: 18px; } }
+    @media (prefers-reduced-motion: reduce) { #start { transition: none; } }
     @media (pointer: coarse) { .tbtn { display: block; } #hud { display: none; } }
     #attr { position: fixed; right: 6px; bottom: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
   </style>
 </head>
 <body>
   <div id="hud">클릭: 마우스 고정 · WASD 이동 · Shift 달리기 · Space 점프(공중에서 길게: 앞으로 활공) · 왼쪽 버튼: 거미줄(어디서든) · 오른쪽 버튼/E: 당기기 · 벽으로 밀면 벽타기</div>
+  <div id="menu">
+    <main id="panel" class="glass">
+      <span class="badge glass">대한민국 거미줄 스윙 탐험</span>
+      <h1>SPIDER</h1>
+      <p>실제 건물과 도로 위를 누리와 함께 날아다니세요</p>
+      <!-- 검색창(#search)은 메인 화면에서는 여기에, 시작하면 화면 왼쪽 위로 옮김 -->
+      <div id="search-slot" style="width: 100%"></div>
+      <div id="chips" aria-label="바로 가기"></div>
+      <button id="start">시작하기</button>
+      <span class="help">WASD 이동 · Shift 달리기 · Space 점프/활공 · 마우스 왼쪽 거미줄 · E 당기기</span>
+    </main>
+  </div>
   <div id="search">
     <input id="q" type="search" placeholder="장소 검색: 도시·주소·건물 이름 ( / )" aria-label="장소 검색: 도시, 주소, 건물 이름으로 순간이동" role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" autocomplete="off" enterkeyhint="search">
     <ul id="results" role="listbox" aria-label="검색 결과" hidden></ul>
@@ -39,7 +77,7 @@
   <button id="btn-zip" class="tbtn" style="right: 20px; bottom: 115px">당기기</button>
   <button id="btn-jump" class="tbtn" style="right: 110px">점프</button>
   <button id="btn-web" class="tbtn" style="right: 20px">거미줄</button>
-  <div id="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors · <a href="https://overturemaps.org" target="_blank">Overture Maps</a></div>
+  <div id="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors · <a href="https://docs.overturemaps.org/attribution/" target="_blank">Overture Maps</a> · 지형 <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank">AWS Terrain Tiles</a></div>
   <script type="module" src="./src/main.js"></script>
 </body>
 </html>

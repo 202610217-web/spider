@@ -2,7 +2,7 @@
 
 ## 목표
 전국 실제 건물·도로·지형 위를 3인칭 시점으로 거미줄 스윙하며 탐험. 전투·멀티플레이 없음.
-주인공은 오리지널 캐릭터 "누리"(남색 슈트·민트 띠·가슴 V 무늬·민트 목도리·흰 헬멧+가로 바이저, `src/hero.js`). 기존 만화·영화 캐릭터 이름·디자인 사용 금지.
+주인공은 오리지널 캐릭터 "누리"(남색 전신 슈트·민트 라인·가슴 V 무늬·민트 장갑과 부츠·남색 마스크+가로 민트 바이저·손목 줄 발사기). 3D 모델은 `public/models/nuri.glb`(Higgsfield: 디자인 이미지 → 3D → 뼈대, 출처는 `public/models/README.md`), 움직임은 `src/hero.js`가 뼈대에 자세 값을 넣어 만듦(모델을 못 받으면 도형으로 된 기본 모양). 기존 만화·영화 캐릭터 이름·디자인 사용 금지(거미 문양·거미줄 무늬·빨강+파랑 조합 등).
 
 ## 기술
 - Vite + Three.js (JavaScript)
@@ -12,10 +12,11 @@
 - 건물·도로: OpenStreetMap — Geofabrik 한국 추출본(.osm.pbf)을 `osmium-tool`로 가공 (`scripts/build-tiles.js`)
 - 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json`, 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
 - 빠진 건물 보충: Overture Maps 건물 중 OSM 출처가 아닌 것(위성사진 자동 추출 등)을 `scripts/fetch-overture.sh`로 받아 `data/overture.ndjson`에 두면 `build-tiles.js`가 더함. 한국 경계(Geofabrik .poly) 안, 기존 건물과 안 겹치는 것만
-- 지형: AWS Terrain Tiles (Terrarium) z12 PNG를 브라우저가 직접 받아 타일당 33×33 고도 격자로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
+- 땅 덮개: OSM 숲·풀밭·공원·논밭 다각형을 타일마다 64×64 칸으로 칠해 `land`에 넣음(`src/land.js`), 게임은 땅 꼭짓점 색으로 씀
+- 지형: AWS Terrain Tiles (Terrarium) z13 PNG를 브라우저가 직접 받아 타일당 65×65 고도 격자(약 15m 간격)로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
 
 ## 원칙
-- 타일 JSON: `buildings [{h, s, ring}]`, `roads [{w, line, b?}]`(b: 다리), `water [[바깥 링, 구멍…]]`, `cross`·`lights [[동, 북, 도로 방향(rad), 도로 폭]]`(횡단보도·신호등)
+- 타일 JSON: `buildings [{h, s, ring}]`, `roads [{w, line, b?}]`(b: 다리), `water [[바깥 링, 구멍…]]`, `cross`·`lights [[동, 북, 도로 방향(rad), 도로 폭]]`(횡단보도·신호등), `land [종류, 칸 수, …]`(0 없음·1 논밭·2 풀밭·3 숲, 64×64 칸 줄임)
 - 다리 상판 높이는 게임에서 정함(`src/tiles.js`: 땅 + 8m, 일반 도로에서 60m 안은 경사). 땅 높이를 물을 때 내 높이를 넘기면 상판도 땅으로 봄(`groundAt(x, z, y)`)
 - 스윙·허공 줄은 높이를 끝없이 벌 수 없어야 함(추진은 줄 아래쪽 구간만, 허공 줄은 땅에서 60m까지)
 - 가로수·간판·차선은 데이터가 아니라 규칙으로 만든 꾸밈(자리마다 늘 같은 결과). 가로수는 충돌 없음. 간판은 실제 상호가 아닌 업종 이름만
@@ -30,7 +31,8 @@
 - 좌표는 타일마다 원점을 따로 잡아 부동소수점 떨림 방지 (타일 데이터는 원점 기준 미터)
 - 큰 데이터 파일은 저장소에 올리지 않음 (`public/data/`는 gitignore, 스크립트로 생성)
 - `military` 태그가 붙은 시설과, 군 부지(`landuse=military`, `military=*`) 다각형 안의 건물·도로는 데이터에서 제외
-- 출처 표기 필수 (© OpenStreetMap contributors · Overture Maps)
+- 출처 표기 필수 (© OpenStreetMap contributors · Overture Maps · AWS Terrain Tiles)
+- 배포 사이트는 GitHub Pages 1GB 한도 → CI가 타일 950MB를 넘으면 배포 전에 멈춤
 
 ## R2 이전 (선택)
 - `scripts/upload-r2.sh`: 타일을 gzip으로 압축해 R2에 올림(aws CLI, S3 호환 API). GitHub Actions의 `upload-r2` 워크플로를 수동 실행
@@ -76,3 +78,4 @@
 - [x] 미니맵 아래에 현재 행정구역("서울특별시 종로구") 표시 — OSM Nominatim 역지오코딩(`src/region.js`), 300m 이상 움직이고 10초가 지났을 때만 요청. 활공을 앞으로 빠르게 나는 방식으로 변경(40m/s, 하강 6m/s, 밀면 54m/s)
 - [x] OSM에 없는 건물을 Overture Maps에서 보충. 보충한 건물의 높이는 바닥 넓이로 추정(120㎡ 미만 6m, 120~500㎡ 12m, 500㎡ 이상 20m). 브랜치 빌드는 Pages 아티팩트를 올리지 않음
 - 전국 빌드 결과(2026-11): 건물 351만 개(OSM 137만 + Overture 215만), 타일 8.5만 개, 763MB — GitHub Pages 한도 1GB에 가까워 더 늘리려면 R2 이전 필요
+- [x] 누리 3D 모델 교체(Higgsfield: 오리지널 디자인 이미지 → 3D 메시 → 뼈대, 기존 자세 시스템을 뼈대에 연결), 메인 화면(리퀴드 글래스, 피그마 'Main screen — liquid glass' 프레임 기준, `src/menu.js` — 주소에 `?ll=`이 없을 때만 보임), 숲·풀밭·공원·논밭 땅 색, 지형 해상도 4배(z13), 태그 없는 위성 건물은 주택·창고·상가 모양으로

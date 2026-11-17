@@ -43,7 +43,9 @@ jobs:
           mkdir -p data
           [ -f data/south-korea-latest.osm.pbf ] || curl -fL -o data/south-korea-latest.osm.pbf https://download.geofabrik.de/asia/south-korea-latest.osm.pbf
           npm run build:tiles
-          du -sh public/data/tiles # GitHub Pages 한도는 1GB
+          du -sh public/data/tiles
+          # GitHub Pages 사이트 한도는 1GB: 넘으면 배포가 깨지므로 여기서 멈춤
+          [ $(du -sm public/data | cut -f1) -lt 950 ] || { echo '타일이 950MB를 넘음 — R2로 옮기거나 줄여야 함'; exit 1; }
       - run: npx vite build --base=/${{ github.event.repository.name }}/
         env:
           VITE_TILE_URL: ${{ vars.TILE_URL }} # 비어 있으면 사이트에 함께 올린 타일을 읽음

@@ -1,6 +1,6 @@
 import assert from 'node:assert';
 import * as THREE from 'three';
-import { createHero, heroState } from './hero.js';
+import { createHero, heroState, rigModel } from './hero.js';
 
 const P = (o) => ({ vel: new THREE.Vector3(), pos: new THREE.Vector3(), anchor: null, zipping: false, climbing: false, onGround: false, ...o });
 const v = (x, y, z) => new THREE.Vector3(x, y, z);
@@ -32,4 +32,26 @@ for (let i = 0; i < 120; i++) hero.animate(P({ anchor: v(3, 30, 10), vel: v(0, -
 // 스윙: 쥔 손이 머리 위로, 걸린 곳 쪽(앞)으로 뻗음
 hero.hand.getWorldPosition(hand);
 assert.ok(hand.y > 0.9 && hand.z > 0, `스윙 손 위치 ${hand.toArray()}`);
+
+// 뼈대 연결: A자 자세(팔이 45° 벌어짐, 뼈 자체도 돌아가 있음)인 가짜 뼈대에서 자세 값 0 → 팔다리가 똑바로 아래로, 팔꿈치 -90° → 팔뚝이 앞(+z)으로
+const bone = (name, parent, x, y, z, rz = 0) => { const o = new THREE.Bone(); o.name = name; o.position.set(x, y, z); o.rotation.z = rz; parent.add(o); return o; };
+const model = new THREE.Group(), arm = new THREE.Group(); arm.scale.setScalar(0.01); model.add(arm);
+const hips = bone('Hips', arm, 0, 100, 0);
+for (const [side, sx] of [['Left', 1], ['Right', -1]]) {
+  const up = bone(side + 'Arm', hips, sx * 20, 40, 0, sx * 0.7), fore = bone(side + 'ForeArm', up, 0, -25, 0, sx * 0.1); bone(side + 'Hand', fore, 0, -25, 0);
+  const leg = bone(side + 'UpLeg', hips, sx * 10, 0, 0, sx * 0.1), shin = bone(side + 'Leg', leg, 0, -40, 0); bone(side + 'Foot', shin, 0, -40, 0);
+}
+assert.equal(rigModel(new THREE.Group()), null, '뼈가 없으면 null');
+const rig = rigModel(model), at = (n) => model.getObjectByName(n).getWorldPosition(v());
+for (const n of ['sL', 'eL', 'hL', 'kL', 'sR', 'eR', 'hR', 'kR']) rig.set(n, 0, 0);
+model.updateMatrixWorld(true);
+for (const side of ['Left', 'Right']) {
+  const [a, f, h2] = [at(side + 'Arm'), at(side + 'ForeArm'), at(side + 'Hand')];
+  assert.ok(Math.abs(f.x - a.x) < 1e-6 && Math.abs(h2.x - a.x) < 1e-6 && Math.abs(a.y - h2.y - 0.5) < 1e-6, `${side} 팔이 똑바로 아래로: ${h2.toArray()}`);
+  assert.ok(Math.abs(at(side + 'Foot').x - at(side + 'UpLeg').x) < 1e-6, '다리도 아래로');
+}
+rig.set('eL', -Math.PI / 2); rig.set('sR', -Math.PI / 2); model.updateMatrixWorld(true);
+const fl = at('LeftForeArm'), hl = at('LeftHand');
+assert.ok(Math.abs(hl.z - fl.z - 0.25) < 1e-6 && Math.abs(hl.y - fl.y) < 1e-6, `팔꿈치를 굽히면 팔뚝이 앞으로: ${hl.toArray()}`);
+assert.ok(Math.abs(at('RightHand').z - at('RightArm').z - 0.5) < 1e-6, '어깨를 앞으로 들면 팔 전체가 앞으로(팔뚝도 따라감)');
 console.log('hero ok');

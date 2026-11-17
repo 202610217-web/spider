@@ -1,8 +1,8 @@
 import { S } from './tile.js';
 
-// 지형: AWS Terrain Tiles(Terrarium) z12. z12 픽셀 하나 = z15 타일의 1/32 (약 30m)
-export const N = 32; // 타일 한 변의 격자 칸 수
-const URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/12';
+// 지형: AWS Terrain Tiles(Terrarium) z13. z13 픽셀 하나 = z15 타일의 1/64 (약 15m)
+export const N = 64; // 타일 한 변의 격자 칸 수 (land 격자와 같음)
+const URL = 'https://s3.amazonaws.com/elevation-tiles-prod/terrarium/13';
 // shortcut: 받은 고도 이미지는 계속 보관(장당 256KB), 장거리 이동으로 메모리가 문제되면 오래된 것부터 해제
 const cache = new Map(); // "X/Y" → Promise<Float32Array(256×256)>
 
@@ -26,7 +26,7 @@ function dem(X, Y) {
 
 // 타일 (tx, ty)의 (N+1)×(N+1) 고도 격자. 가장자리는 이웃 타일과 같은 픽셀을 읽어 이음매가 맞음
 export async function tileHeights(tx, ty) {
-  const gx0 = tx * N, gy0 = ty * N; // z12 전역 픽셀 좌표
+  const gx0 = tx * N, gy0 = ty * N; // z13 전역 픽셀 좌표
   const imgs = {};
   await Promise.all([gx0 >> 8, (gx0 + N) >> 8].flatMap((X) => [gy0 >> 8, (gy0 + N) >> 8].map(async (Y) => { imgs[`${X}/${Y}`] = await dem(X, Y); })));
   const h = new Float32Array((N + 1) ** 2);

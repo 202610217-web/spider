@@ -12,4 +12,8 @@ assert.equal(s({ building: 'yes' }, 20, 400), 2, 'mid unknown → commercial');
 assert.equal(s({ building: 'yes' }, 60, 700), 1, 'tall narrow unknown → apartment');
 assert.equal(s({ building: 'yes' }, 60, 3000), 3, 'tall wide unknown → office');
 assert.equal(LOOKS.length, 6);
+assert.equal(s({}, 6, 120), 0, '위성 건물: 작은 집');
+assert.equal(s({}, 12, 1500), 4, '위성 건물: 넓고 낮으면 창고');
+assert.equal(s({}, 9, 400), 2);
+assert.equal(s({ building: 'yes' }, 12, 1500), 2, 'OSM 건물은 기존 규칙');
 console.log('style ok');
