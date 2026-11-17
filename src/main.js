@@ -8,7 +8,7 @@ import { createGovernor } from './perf.js';
 import { findAnchor } from './web.js';
 import { rayHit } from './collide.js';
 import { createMinimap } from './minimap.js';
-import { setupCities } from './cities.js';
+import { setupSearch } from './search.js';
 
 const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
@@ -79,7 +79,7 @@ const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
 const posEl = document.getElementById('pos');
 const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
-setupCities(document.getElementById('city'), document.getElementById('cities'));
+setupSearch(document.getElementById('q'), document.getElementById('results'), document.getElementById('status'));
 let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
 
 renderer.setAnimationLoop((now) => {

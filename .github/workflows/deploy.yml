@@ -40,6 +40,7 @@ jobs:
       - run: npx vite build --base=/${{ github.event.repository.name }}/
         env:
           VITE_TILE_URL: ${{ vars.TILE_URL }} # 비어 있으면 사이트에 함께 올린 타일을 읽음
+          VITE_KAKAO_KEY: ${{ vars.KAKAO_JS_KEY }} # 카카오 JavaScript 키(도메인 제한). 비어 있으면 장소 검색은 OSM을 씀
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

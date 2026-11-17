@@ -12,16 +12,27 @@
     #btn-web.ready, #btn-zip.ready { background: #3fe0c5; }
     #minimap { position: fixed; right: 8px; top: 8px; width: 150px; height: 150px; border-radius: 8px; border: 2px solid #fff8; pointer-events: none; }
     #pos { position: fixed; right: 8px; top: 166px; width: 154px; box-sizing: border-box; font: 11px sans-serif; text-align: center; white-space: pre; background: #fffc; padding: 3px 4px; border-radius: 6px; pointer-events: none; }
-    #city { position: fixed; left: 6px; top: 30px; width: 190px; font: 16px sans-serif; padding: 4px 8px; border-radius: 6px; border: 0; background: #fffc; }
-    @media (pointer: coarse) { #city { top: 8px; } }
+    #search { position: fixed; left: 6px; top: 30px; width: min(300px, calc(100vw - 180px)); font: 15px sans-serif; color: #1f2a44; }
+    #q { box-sizing: border-box; width: 100%; font: inherit; padding: 8px 12px; border-radius: 10px; border: 2px solid transparent; background: #fffd; box-shadow: 0 2px 8px #0003; }
+    #q:focus { outline: 0; border-color: #3fe0c5; background: #fff; }
+    #results, #status { margin: 4px 0 0; padding: 4px; list-style: none; border-radius: 10px; background: #fff; box-shadow: 0 2px 8px #0003; }
+    #results { max-height: 50vh; overflow-y: auto; }
+    #results li { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; min-height: 28px; border-radius: 7px; cursor: pointer; }
+    #results li[aria-selected="true"], #results li:hover { background: #d9f7f1; }
+    #results small { color: #5b6478; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #status { padding: 8px 12px; color: #5b6478; }
+    @media (pointer: coarse) { #search { top: 8px; } }
     @media (pointer: coarse) { .tbtn { display: block; } #hud { display: none; } }
     #attr { position: fixed; right: 6px; bottom: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
   </style>
 </head>
 <body>
   <div id="hud">클릭: 마우스 고정 · WASD 이동 · Shift 달리기 · Space 점프(공중에서 길게: 앞으로 활공) · 왼쪽 버튼: 거미줄(어디서든) · 오른쪽 버튼/E: 당기기 · 벽으로 밀면 벽타기</div>
-  <input id="city" list="cities" placeholder="도시·주소·건물 이름" aria-label="도시, 주소, 건물 이름으로 순간이동" autocomplete="off">
-  <datalist id="cities"></datalist>
+  <div id="search">
+    <input id="q" type="search" placeholder="장소 검색: 도시·주소·건물 이름 ( / )" aria-label="장소 검색: 도시, 주소, 건물 이름으로 순간이동" role="combobox" aria-expanded="false" aria-controls="results" aria-autocomplete="list" autocomplete="off" enterkeyhint="search">
+    <ul id="results" role="listbox" aria-label="검색 결과" hidden></ul>
+    <div id="status" role="status" hidden></div>
+  </div>
   <canvas id="minimap" aria-label="미니맵"></canvas>
   <div id="pos" aria-label="현재 위치"></div>
   <button id="btn-zip" class="tbtn" style="right: 20px; bottom: 115px">당기기</button>
