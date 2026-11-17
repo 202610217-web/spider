@@ -23,8 +23,9 @@ export function buildingGeometries(buildings, baseOf, sink) {
     for (const [p, u] of [[a, ua], [b, ub], [c, uc]]) { out.pos.push(...p); out.nor.push(nx / l, ny / l, nz / l); out.uv.push(u[0] / 2, u[1] / 2); out.col.push(color.r, color.g, color.b); }
   };
   for (const { h, s = 2, ring } of buildings) {
-    const look = LOOKS[s] ?? LOOKS[2], base = baseOf(ring);
-    const seed = Math.abs(Math.round(ring[0][0] * 7 + ring[0][1] * 13 + h)); // 같은 건물은 늘 같은 색
+    const base = baseOf(ring);
+    const seed = Math.abs(Math.round(ring[0][0] * 7 + ring[0][1] * 13 + h)); // 같은 건물은 늘 같은 디자인·색
+    const look = (LOOKS[s] ?? LOOKS[2])[Math.floor(hash(seed) / 7) % 3]; // 색 고르기(seed % 색 수)와 엇갈리게 /7
     // 경사 지붕: 바닥이 사각형인 전통 건물·공장·낮은 주택(절반). 용마루 높이가 h, 벽은 처마(h - rh)까지
     let rh = 0;
     if (ring.length === 5 && (s === 5 || s === 4 || (s === 0 && h <= 9 && seed % 2 === 0))) {
@@ -96,8 +97,10 @@ export const photo = (name) => sharp(new THREE.TextureLoader().load(url(name + '
 export const surface = (name) => ({ map: photo(name), normalMap: photo(name + '_n') });
 
 // 벽 무늬 한 칸(3m × 3m): 사진 바탕(밝은 회색조 → 건물 색이 곱해짐) 위에 피그마에서 그린 창호를 겹침. 노멀맵은 창 자리만 평평하게
-// 0 벽돌 + 작은 창, 1 미장 + 긴 띠창, 2 유리 커튼월, 3 골강판 패널(창 없음)
-const LAYERS = [['brick', 'win0.svg'], ['plaster', 'win1.svg'], [null, 'win2.svg'], ['panel', null]], FLAT = '#8080ff';
+// 0 벽돌 + 작은 창, 1 미장 + 긴 띠창, 2 유리 커튼월, 3 골강판 패널(창 없음), 4 미장 + 작은 창, 5 벽돌 + 띠창,
+// 6 콘크리트 + 두 칸 창, 7 짙은 유리 + 세로 기둥, 8 골강판 + 높은 띠창, 9 콘크리트 + 높은 띠창
+export const LAYERS = [['brick', 'win0.svg'], ['plaster', 'win1.svg'], [null, 'win2.svg'], ['panel', null], ['plaster', 'win0.svg'],
+  ['brick', 'win1.svg'], ['concrete', 'win3.svg'], [null, 'win4.svg'], ['panel', 'win5.svg'], ['concrete', 'win5.svg']], FLAT = '#8080ff';
 function wallSurface(kind) {
   const canvas = (fill) => { const c = Object.assign(document.createElement('canvas'), { width: 256, height: 256 }), x = c.getContext('2d'); x.fillStyle = fill; x.fillRect(0, 0, 256, 256); return x; };
   const x = canvas('#fff'), nx = canvas(FLAT); // 그림이 오기 전(또는 못 받으면) 흰 바탕·평평한 면 = 건물 색 그대로
@@ -151,7 +154,7 @@ let mats;
 // 재질은 처음 쓸 때 한 번만 만듦: { walls: [무늬별], roof, pitched: [기와, 골강판], signs }
 export function buildingMaterials() {
   return (mats ??= {
-    walls: [0, 1, 2, 3].map((k) => new THREE.MeshLambertMaterial({ ...wallSurface(k), vertexColors: true })),
+    walls: LAYERS.map((_, k) => new THREE.MeshLambertMaterial({ ...wallSurface(k), vertexColors: true })),
     roof: new THREE.MeshLambertMaterial({ ...surface('concrete'), vertexColors: true }),
     pitched: ['rooftile', 'panel'].map((n) => new THREE.MeshLambertMaterial({ ...surface(n), vertexColors: true, side: THREE.DoubleSide })),
     signs: new THREE.MeshBasicMaterial({ map: signAtlas(), side: THREE.DoubleSide }),

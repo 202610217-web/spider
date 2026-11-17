@@ -79,7 +79,7 @@ function putBuilding(pts, tags, extra) {
     for (let i = 0; i < t.box.length; i += 4) if (cx >= t.box[i] && cx <= t.box[i + 2] && cy >= t.box[i + 1] && cy <= t.box[i + 3]) return false;
   }
   t.box.push(x0, y0, x1, y1);
-  const h = buildingHeight(tags, extra ? a : undefined);
+  const h = buildingHeight(tags, extra ? a : undefined, pts[0]);
   t.buildings.push(JSON.stringify({ h, s: buildingStyle(tags, h, a), ring }));
   count.buildings++;
   return true;
