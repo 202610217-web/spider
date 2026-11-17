@@ -7,7 +7,7 @@ assert.equal(h({}), 20);
 assert.equal(h({ building: 'apartments' }), 45);
 assert.equal(h({ building: 'apartments', 'building:levels': '5' }), 15);
 assert.equal(h({ building: 'yes' }), 20);
-// 종류 없는 건물은 바닥 넓이로
+// 넓이를 넘기면(Overture 건물) 바닥 넓이로
 assert.equal(h({ building: 'yes' }, 119), 6);
 assert.equal(h({ building: 'yes' }, 120), 12);
 assert.equal(h({ building: 'yes' }, 499), 12);

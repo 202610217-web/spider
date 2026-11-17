@@ -1,9 +1,10 @@
 // OSM 추출본(.osm.pbf) → 타일별 건물·도로·물·횡단보도·신호등 JSON (public/data/tiles/15/x/y.json)
+// data/overture.ndjson이 있으면(scripts/fetch-overture.sh) OSM에 없는 건물을 더함
 // 사용: node scripts/build-tiles.js [입력.osm.pbf]   (osmium-tool 필요)
 // 좌표는 타일 북서쪽 모서리 기준 미터: [동쪽, 북쪽(음수)]
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, createReadStream } from 'node:fs';
 import { buildingHeight } from '../src/height.js';
 import { buildingStyle } from '../src/style.js';
 import { Z, S, lonLatToTile } from '../src/tile.js';
@@ -52,7 +53,7 @@ const osmium = spawn('osmium', ['export', 'data/buildings.osm.pbf', ...EXPORT, '
 const exit = new Promise((r) => osmium.on('close', r));
 
 const tiles = new Map(); // "x/y" → { buildings, roads, water: JSON 문자열[], cross·lights: 횡단보도·신호등 [동, 북][] }
-const tile = (key) => tiles.get(key) ?? tiles.set(key, { buildings: [], roads: [], water: [], cross: [], lights: [] }).get(key);
+const tile = (key) => tiles.get(key) ?? tiles.set(key, { buildings: [], roads: [], water: [], cross: [], lights: [], box: [] }).get(key); // box: 건물 외곽 상자(겹침 검사용)
 const meters = (tx, ty) => ([fx, fy]) => [+((fx - tx) * S).toFixed(1), +(-(fy - ty) * S).toFixed(1)];
 const count = { buildings: 0, roads: 0, water: 0, cross: 0, lights: 0, bridges: 0 };
 let skipped = 0;
@@ -61,6 +62,23 @@ function put(kind, pts, props) {
   const tx = Math.floor(pts[0][0]), ty = Math.floor(pts[0][1]);
   tile(`${tx}/${ty}`)[kind].push(JSON.stringify(props(pts.map(meters(tx, ty)))));
   count[kind]++;
+}
+// 건물을 첫 점이 속한 타일에 넣음. extra(Overture에서 더하는 건물)는 이미 있는 건물과 겹치면 빼고, 높이 정보가 없으면 바닥 넓이로 추정
+// shortcut: 겹침은 같은 타일 안에서 "중심이 다른 건물의 외곽 상자 안"으로만 봄 — 비스듬한 건물 옆 건물이 가끔 빠짐, 눈에 띄면 다각형 검사로
+function putBuilding(pts, tags, extra) {
+  const tx = Math.floor(pts[0][0]), ty = Math.floor(pts[0][1]), t = tile(`${tx}/${ty}`), ring = pts.map(meters(tx, ty));
+  const xs = ring.map((p) => p[0]), ys = ring.map((p) => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys), a = area(ring);
+  if (extra) {
+    if (a < 20) return false; // 자동 추출 잡음
+    const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2;
+    for (let i = 0; i < t.box.length; i += 4) if (cx >= t.box[i] && cx <= t.box[i + 2] && cy >= t.box[i + 1] && cy <= t.box[i + 3]) return false;
+  }
+  t.box.push(x0, y0, x1, y1);
+  const h = buildingHeight(tags, extra ? a : undefined);
+  t.buildings.push(JSON.stringify({ h, s: buildingStyle(tags, h, a), ring }));
+  count.buildings++;
+  return true;
 }
 // 도로는 40m 이하 구간으로 쪼갠 뒤 타일이 바뀌는 점에서 잘라 각 타일에 나눠 넣음 (조각은 끝점을 공유해 이어짐). 군 부지 안의 점은 뺌
 function putRoad(coords, w, b) {
@@ -89,7 +107,7 @@ for await (const line of createInterface({ input: osmium.stdout })) {
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
       const pts = poly[0].map(([lon, lat]) => lonLatToTile(lon, lat)); // 바깥 링만
       if (pts.some(inMilitary)) skipped++; // 꼭짓점 하나라도 군 부지 안이면 제외
-      else put('buildings', pts, (ring) => { const a = area(ring), h = buildingHeight(t, a); return { h, s: buildingStyle(t, h, a), ring }; });
+      else putBuilding(pts, t);
     }
   } else if (t.natural === 'water') { // 강·호수: 걸치는 타일마다 그 타일 안쪽만 잘라 넣음 (구멍 = 섬)
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
@@ -108,6 +126,17 @@ for await (const line of createInterface({ input: osmium.stdout })) {
 }
 if (await exit) throw new Error('osmium export 실패');
 
+// Overture에서 받아 둔, OSM에 없는 건물(위성사진 자동 추출 등)
+const EXTRA = 'data/overture.ndjson';
+let added = 0, dup = 0;
+if (existsSync(EXTRA)) for await (const line of createInterface({ input: createReadStream(EXTRA) })) {
+  if (!line) continue;
+  const { h, f, c } = JSON.parse(line);
+  const pts = c.map(([lon, lat]) => lonLatToTile(lon, lat));
+  if (pts.length < 4 || pts.some(inMilitary)) { skipped++; continue; }
+  if (putBuilding(pts, { height: h, 'building:levels': f }, true)) added++; else dup++;
+}
+
 rmSync(OUT, { recursive: true, force: true });
 for (const [key, t] of tiles) {
   mkdirSync(`${OUT}/${Z}/${key.split('/')[0]}`, { recursive: true });
@@ -118,4 +147,4 @@ for (const [key, t] of tiles) {
   count.cross += cross.length; count.lights += lights.length;
   writeFileSync(`${OUT}/${Z}/${key}.json`, `{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)},"lights":${JSON.stringify(lights)}}`);
 }
-console.log(`건물 ${count.buildings}개, 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);
+console.log(`건물 ${count.buildings}개(그중 Overture 추가 ${added}개, 겹치거나 너무 작아 뺀 것 ${dup}개), 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);

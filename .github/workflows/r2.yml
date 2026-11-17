@@ -19,6 +19,13 @@ jobs:
         with:
           path: data/south-korea-latest.osm.pbf
           key: korea-pbf-v1
+      # OSM에 없는 건물(Overture). 받는 데 오래 걸려 캐시함 (새로 받으려면 키의 v1을 올림)
+      - uses: actions/cache@v4
+        with:
+          path: data/overture.ndjson
+          key: overture-v1
+      - run: scripts/fetch-overture.sh
+        timeout-minutes: 90
       - run: npm run build:tiles
       - run: scripts/upload-r2.sh
         env:
