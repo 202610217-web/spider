@@ -73,7 +73,7 @@ renderer.setAnimationLoop((now) => {
   move.set(-sy * input.my + cy * input.mx, 0, -cy * input.my - sy * input.mx);
   if (move.lengthSq() > 1) move.normalize();
 
-  // 거미줄: 스틱을 민 방향(없으면 카메라 정면) 위쪽 건물(없으면 솟은 지형)을 자동 조준. 걸 수 있으면 표시
+  // 거미줄: 스틱을 민 방향(없으면 카메라 정면) 위쪽 건물을 자동 조준, 건물이 없으면 솟은 지형이나 앞쪽 위 허공에 걸림
   if (frame++ % 15 === 0) near = player.colliders.filter((c) => c.box.distanceToPoint(player.pos) < WEB_RANGE);
   const heading = move.lengthSq() > 0.09 ? Math.atan2(move.x, move.z) : Math.atan2(-sy, -cy);
   const cand = player.anchor ? null : findAnchor(player.pos, heading, near, WEB_RANGE, tiles.groundAt);
@@ -81,14 +81,14 @@ renderer.setAnimationLoop((now) => {
   webBtn.classList.toggle('ready', !!cand); // 조준점이 화면 밖이어도 버튼 색으로 알 수 있게
   zipBtn.classList.toggle('ready', !!cand || (!!player.anchor && !player.zipping));
   if (cand) { marker.position.copy(cand); marker.scale.setScalar(camera.position.distanceTo(cand) * 0.012); }
-  // 거미줄 버튼: 누르고 있으면 걸려 스윙(걸 곳이 없으면 활공). 당기기 버튼: 누르는 순간 걸린 곳으로 날아감(스윙 중에도 가능)
+  // 거미줄 버튼: 누르고 있으면 걸려 스윙. 점프를 누르고 있으면 활공. 당기기 버튼: 누르는 순간 걸린 곳으로 날아감(스윙 중에도 가능)
   if (input.zip && !zipHeld) player.zip(cand);
   else if (input.web && cand) player.attach(cand);
   if (!input.web && !input.zip) player.release();
   zipHeld = input.zip;
 
   if (!ready) acc = 0;
-  const opts = { run: input.run, glide: input.web };
+  const opts = { run: input.run, glide: input.glide };
   while (acc >= STEP) { player.step(STEP, move, input.jump, opts); input.jump = false; acc -= STEP; }
 
   tiles.update(player.pos, player.vel);
