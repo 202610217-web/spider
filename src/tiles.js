@@ -132,7 +132,7 @@ export function createTiles(scene, ox, oy, onChange) {
 
     if (buildings.length) {
       const baseOf = (ring) => Math.min(...ring.map(([x, y]) => yAt(x, -y))); // 바닥 = 둘레에서 가장 낮은 땅
-      for (const { h, ring } of buildings) { const base = baseOf(ring); tile.colliders.push(makeCollider(ring, off, base - SINK, base + h)); }
+      for (const { h, ring, m } of buildings) { const base = baseOf(ring); tile.colliders.push(makeCollider(ring, off, m > 0 ? base + m : base - SINK, base + h)); } // m: 떠 있는 건물 부분의 바닥 높이
       const geo = buildingGeometries(buildings, baseOf, SINK), mats = buildingMaterials();
       geo.walls.forEach((g, k) => g && add(g, mats.walls[k], true));
       add(geo.roof, mats.roof, true);

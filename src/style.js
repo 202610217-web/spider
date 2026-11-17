@@ -15,6 +15,7 @@ const BY_TYPE = {
 // tags: OSM 태그, h: 높이(m), area: 바닥 넓이(m²)
 export function buildingStyle(tags = {}, h, area) {
   if (tags.historic || /hanok|traditional/.test(tags['building:architecture'] ?? '')) return 5;
+  if (tags['building:material'] === 'glass' || tags['building:facade:material'] === 'glass') return 3; // 유리 외벽(랜드마크 부분 등)
   if (tags.building === 'residential') return h >= 20 ? 1 : 0;
   if (tags.building in BY_TYPE) return BY_TYPE[tags.building];
   // 태그가 전혀 없는 위성 AI 건물(Overture): 대부분 시골·교외 → 작으면 주택, 넓고 낮으면 창고·축사(공장 모양), 나머지는 상가

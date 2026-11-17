@@ -22,17 +22,29 @@ export function buildingGeometries(buildings, baseOf, sink) {
     const l = Math.hypot(nx, ny, nz) || 1;
     for (const [p, u] of [[a, ua], [b, ub], [c, uc]]) { out.pos.push(...p); out.nor.push(nx / l, ny / l, nz / l); out.uv.push(u[0] / 2, u[1] / 2); out.col.push(color.r, color.g, color.b); }
   };
-  for (const { h, s = 2, ring, d, c, rc, p } of buildings) {
+  for (const { h, s = 2, ring, d, c, rc, p, r, m = 0 } of buildings) {
     const base = baseOf(ring);
     const seed = Math.abs(Math.round(ring[0][0] * 7 + ring[0][1] * 13 + h)); // 같은 건물은 늘 같은 디자인·색
     const look = (LOOKS[s] ?? LOOKS[2])[d ?? Math.floor(hash(seed) / 7) % 3]; // d: 정보로 정한 디자인(없으면 자리로, 색 고르기와 엇갈리게 /7)
     const wallColor = c ?? pick(look.wall, seed), roofColor = rc ?? pick(look.roof, seed); // c·rc: OSM 색 태그
     // 경사 지붕: 바닥이 사각형인 전통 건물·공장·낮은 주택(절반). 용마루 높이가 h, 벽은 처마(h - rh)까지
     let rh = 0;
-    if (ring.length === 5 && (p ?? (s === 5 || s === 4 || (s === 0 && h <= 9 && seed % 2 === 0)))) { // p: OSM 지붕 모양 태그(1 경사, 0 평지붕)
+    if (p === 2 || p === 3) { // 피라미드·돔(바닥 모양 아무거나): 중심으로 모이는 지붕. r: roof:height 태그
+      const cx = ring.slice(1).reduce((u, q) => u + q[0], 0) / (ring.length - 1), cy = ring.slice(1).reduce((u, q) => u + q[1], 0) / (ring.length - 1);
+      const rad = Math.min(...ring.map(([x, y]) => Math.hypot(x - cx, y - cy)));
+      rh = Math.min(r ?? (p === 2 ? rad * 0.6 : rad), (h - m) * 0.6);
+      const out = (pitched[1] ??= buf()), steps = p === 2 ? [0, 1] : [0, 0.25, 0.5, 0.75, 1]; // 돔은 네 띠로 둥글게
+      color.set(roofColor);
+      const at = (q, k) => { const a = (k * Math.PI) / 2, f = p === 2 ? 1 - k : Math.cos(a), y = base + h - rh + rh * (p === 2 ? k : Math.sin(a)); return [cx + (q[0] - cx) * f, y, -(cy + (q[1] - cy) * f)]; };
+      for (let i = 1; i < ring.length; i++) for (let k = 1; k < steps.length; k++) {
+        const a0 = at(ring[i - 1], steps[k - 1]), b0 = at(ring[i], steps[k - 1]), a1 = at(ring[i - 1], steps[k]), b1 = at(ring[i], steps[k]);
+        const L = Math.hypot(ring[i][0] - ring[i - 1][0], ring[i][1] - ring[i - 1][1]);
+        tri(out, a0, b0, b1, [0, 0], [L, 0], [L, 1]); tri(out, a0, b1, a1, [0, 0], [L, 1], [0, 1]);
+      }
+    } else if (ring.length === 5 && (p ?? (s === 5 || s === 4 || (s === 0 && h <= 9 && seed % 2 === 0)))) { // p: OSM 지붕 모양 태그(1 경사, 0 평지붕)
       const len = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]), k = len(ring[0], ring[1]) >= len(ring[1], ring[2]) ? 0 : 1;
       const P = [0, 1, 2, 3].map((i) => ring[(i + k) % 4]), long = len(P[0], P[1]), short = len(P[1], P[2]);
-      rh = Math.min(short * (s === 4 ? 0.15 : 0.35), 3, h * 0.4);
+      rh = Math.min(r ?? short * (s === 4 ? 0.15 : 0.35), r ? Infinity : 3, (h - m) * 0.4);
       const y0 = base + h - rh, y1 = base + h, slope = Math.hypot(short / 2, rh);
       const [a, b, c, d] = P.map(([x, y]) => [x, y0, -y]); // 처마 네 귀
       const m1 = [(P[1][0] + P[2][0]) / 2, y1, -(P[1][1] + P[2][1]) / 2], m0 = [(P[3][0] + P[0][0]) / 2, y1, -(P[3][1] + P[0][1]) / 2]; // 용마루 양 끝
@@ -42,8 +54,10 @@ export function buildingGeometries(buildings, baseOf, sink) {
       tri(out, c, d, m0, [0, 0], [long, 0], [long, slope]); tri(out, c, m0, m1, [0, 0], [long, slope], [0, slope]);
       tri(out, b, c, m1, [0, 0], [short, 0], [short / 2, rh]); tri(out, d, a, m0, [0, 0], [short, 0], [short / 2, rh]); // 박공(삼각 벽)
     }
-    const g = new THREE.ExtrudeGeometry(new THREE.Shape(ring.map(([x, y]) => new THREE.Vector2(x, y))), { depth: h - rh + sink, bevelEnabled: false })
-      .rotateX(-Math.PI / 2).translate(0, base - sink, 0); // 바닥(x, 북) → (x, -z), 돌출 → +y
+    // 바닥: 땅에 붙은 건물은 비탈에서 뜨지 않게 sink만큼 묻고, 떠 있는 건물 부분(m > 0)은 그 높이에서 시작
+    const bottom = m > 0 ? base + m : base - sink;
+    const g = new THREE.ExtrudeGeometry(new THREE.Shape(ring.map(([x, y]) => new THREE.Vector2(x, y))), { depth: Math.max(0.1, base + h - rh - bottom), bevelEnabled: false })
+      .rotateX(-Math.PI / 2).translate(0, bottom, 0); // 바닥(x, 북) → (x, -z), 돌출 → +y
     const { position, normal, uv } = g.attributes, caps = g.groups[0].count; // 앞쪽 caps개가 위아래 뚜껑, 나머지가 벽
     const w = (walls[look.tex] ??= buf());
     for (let i = 0; i < position.count; i++) {

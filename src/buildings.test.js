@@ -42,4 +42,13 @@ for (let t = 0; t < 6; t++) {
   assert.equal(seen.size, 3, `유형 ${t}의 디자인 수: ${[...seen]}`);
 }
 assert.deepEqual(kinds([{ h: 12, s: 1, ring: sq(123) }]), kinds([{ h: 12, s: 1, ring: sq(123) }]));
+// 건물 부분: 바닥이 m만큼 떠 있고(min_height), 피라미드·돔 지붕은 꼭대기가 h, 아무 바닥 모양에도 생김
+const hex = [[10, 0], [5, 8.7], [-5, 8.7], [-10, 0], [-5, -8.7], [5, -8.7], [10, 0]];
+const tower = buildingGeometries([{ h: 120, s: 3, ring: hex, m: 80, p: 3 }, { h: 20, s: 2, ring: sq(50), p: 2 }], () => 5, 8);
+tower.walls.forEach((g) => g && g.computeBoundingBox());
+const wallsBox = tower.walls.find((g) => g && g.boundingBox.min.y > 50).boundingBox;
+assert.ok(Math.abs(wallsBox.min.y - 85) < 1e-6, `떠 있는 부분의 벽은 땅 + 80m에서 시작 ${wallsBox.min.y}`);
+tower.pitched[1].computeBoundingBox();
+assert.ok(Math.abs(tower.pitched[1].boundingBox.max.y - 125) < 1e-6, `돔·피라미드 꼭대기 = 땅 + h ${tower.pitched[1].boundingBox.max.y}`);
+assert.equal(tower.pitched[1].attributes.position.count, (6 * 4 + 4 * 1) * 6, '돔은 변마다 네 띠, 피라미드는 한 띠 (띠마다 삼각형 2개)');
 console.log('buildings ok');
