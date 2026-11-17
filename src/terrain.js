@@ -9,7 +9,7 @@ const cache = new Map(); // "X/Y" → Promise<Float32Array(256×256)>
 function dem(X, Y) {
   const key = `${X}/${Y}`;
   if (!cache.has(key)) cache.set(key, (async () => {
-    const h = new Float32Array(65536); // 실패하면 평지(0m)
+    const h = new Float32Array(65536).fill(0.5); // 실패하면 평지. 0m 이하는 바다로 그리므로(tiles.js) 0.5m로 둠
     try {
       const res = await fetch(`${URL}/${key}.png`);
       if (!res.ok) throw new Error(res.status);

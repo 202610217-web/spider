@@ -28,3 +28,12 @@ export function densify(line, max) {
   }
   return out;
 }
+
+// 중심선을 진행 방향 왼쪽으로 d만큼 옮긴 선 (음수면 오른쪽)
+export function offset(line, d) {
+  return line.map(([x, y], i) => {
+    const [ax, ay] = line[Math.max(i - 1, 0)], [bx, by] = line[Math.min(i + 1, line.length - 1)];
+    const len = Math.hypot(bx - ax, by - ay) || 1;
+    return [x - ((by - ay) / len) * d, y + ((bx - ax) / len) * d];
+  });
+}

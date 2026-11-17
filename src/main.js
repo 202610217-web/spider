@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Player } from './player.js';
+import { Player, R } from './player.js';
 import { createTiles } from './tiles.js';
 import { S, lonLatToTile } from './tile.js';
 import { createInput } from './input.js';
@@ -15,6 +15,8 @@ const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
 const maxRatio = Math.min(devicePixelRatio, 2), governor = createGovernor(maxRatio, maxRatio * 0.5);
 renderer.setPixelRatio(maxRatio);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.autoUpdate = false; // 해와 건물은 안 움직이므로 그림자 지도는 자리를 옮길 때만 다시 그림
 document.body.appendChild(renderer.domElement);
 
 const scene = new THREE.Scene();
@@ -22,8 +24,14 @@ scene.background = new THREE.Color(0x9cc3e6);
 scene.fog = new THREE.Fog(0x9cc3e6, 300, 950); // 로드 반경(약 1km) 밖은 안개로 가림
 scene.add(new THREE.HemisphereLight(0xffffff, 0x667755, 1.5));
 const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-sun.position.set(300, 500, 200);
-scene.add(sun);
+const SUN = new THREE.Vector3(300, 500, 200), SHADOW = 220, SNAP = 40; // 그림자는 주인공 주변 ±220m만, 40m 움직일 때마다 다시 맞춤
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -SHADOW, right: SHADOW, top: SHADOW, bottom: -SHADOW, near: 1, far: 2500 });
+sun.shadow.bias = -0.0005;
+sun.shadow.normalBias = 0.5;
+scene.add(sun, sun.target);
+let shadowDirty = true;
 
 const camera = new THREE.PerspectiveCamera(FOV, 1, 0.5, 1000); // 안개(950m)에 완전히 가려지는 먼 타일은 그리지 않음
 function resize() {
@@ -45,6 +53,7 @@ let ready = false; // 시작 타일이 뜨기 전에는 물리를 멈춤
 const tiles = createTiles(scene, ox, oy, (colliders) => {
   all = colliders;
   frame = 0; // 다음 프레임에 near를 다시 고름
+  shadowDirty = true;
   if (!ready && (ready = true)) player.pos.y = tiles.groundAt(player.pos.x, player.pos.z) + 50;
 });
 player.groundAt = tiles.groundAt;
@@ -61,6 +70,10 @@ const marker = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), new THREE.Mesh
 marker.renderOrder = 1;
 scene.add(marker);
 
+// 주인공 발밑 그림자(그림자 지도는 멈춰 있으므로 따로 둥근 얼룩을 깖)
+const blob = new THREE.Mesh(new THREE.CircleGeometry(0.45, 16).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -6, polygonOffsetUnits: -6 }));
+scene.add(blob);
+
 const move = new THREE.Vector3(), target = new THREE.Vector3();
 const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
@@ -71,7 +84,7 @@ let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
 renderer.setAnimationLoop((now) => {
   const dt = Math.min((now - last) / 1000, 0.1);
   const ratio = governor(dt);
-  if (ratio) renderer.setPixelRatio(ratio);
+  if (ratio) { renderer.setPixelRatio(ratio); sun.castShadow = ratio > maxRatio * 0.6; shadowDirty = true; } // 해상도를 많이 낮춰야 하는 기기에서는 그림자도 끔
   acc += dt;
   last = now;
 
@@ -109,6 +122,19 @@ renderer.setAnimationLoop((now) => {
   if (!player.onGround && hv > 4 && now - input.lookAt > 1200) {
     const d = THREE.MathUtils.euclideanModulo(Math.atan2(-player.vel.x, -player.vel.z) - input.yaw + Math.PI, Math.PI * 2) - Math.PI;
     if (Math.abs(d) < 2.6) input.yaw += d * Math.min(1, dt * 1.5);
+  }
+
+  // 발밑 그림자: 서 있으면 발밑(옥상 포함), 공중이면 땅에 높이만큼 흐리게
+  const gy = player.onGround ? player.pos.y - R : tiles.groundAt(player.pos.x, player.pos.z);
+  blob.position.set(player.pos.x, gy + 0.06, player.pos.z);
+  blob.material.opacity = 0.4 * Math.max(0, 1 - (player.pos.y - R - gy) / 30);
+  // 그림자 지도: 주인공이 SNAP만큼 움직였거나 타일이 바뀌면 그 자리로 옮겨 한 번 다시 그림
+  target.copy(player.pos).divideScalar(SNAP).round().multiplyScalar(SNAP);
+  if (shadowDirty || !target.equals(sun.target.position)) {
+    sun.target.position.copy(target);
+    sun.position.copy(target).addScaledVector(SUN, 2);
+    renderer.shadowMap.needsUpdate = true;
+    shadowDirty = false;
   }
 
   rope.visible = !!player.anchor;
