@@ -86,11 +86,10 @@ for await (const line of createInterface({ input: osmium.stdout })) {
     const b = !!t.bridge && t.bridge !== 'no'; // 다리·고가: 게임에서 상판을 띄움
     if (w && !t.tunnel) { putRoad(g.coordinates, w, b); if (b) count.bridges++; } // 터널(지하)은 제외
   } else if (t.building) {
-    const h = buildingHeight(t);
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
       const pts = poly[0].map(([lon, lat]) => lonLatToTile(lon, lat)); // 바깥 링만
       if (pts.some(inMilitary)) skipped++; // 꼭짓점 하나라도 군 부지 안이면 제외
-      else put('buildings', pts, (ring) => ({ h, s: buildingStyle(t, h, area(ring)), ring }));
+      else put('buildings', pts, (ring) => { const a = area(ring), h = buildingHeight(t, a); return { h, s: buildingStyle(t, h, a), ring }; });
     }
   } else if (t.natural === 'water') { // 강·호수: 걸치는 타일마다 그 타일 안쪽만 잘라 넣음 (구멍 = 섬)
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
