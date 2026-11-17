@@ -40,7 +40,7 @@ jobs:
         timeout-minutes: 90
       # 공식 건물(국토교통부 GIS건물통합정보): 릴리스 'gis-buildings'에 올린 브이월드 ZIP이 바뀔 때만 다시 변환
       - id: gis-key
-        run: echo "key=gis-$(gh release view gis-buildings --json assets --jq '[.assets[] | .name + ":" + (.size | tostring)] | join(",")' 2>/dev/null | sha1sum | cut -c1-12)" >> "$GITHUB_OUTPUT"
+        run: echo "key=gis-$( { gh release view gis-buildings --json assets --jq '[.assets[] | .name + ":" + (.size | tostring)] | join(",")' 2>/dev/null; ls -l data-src/gis 2>/dev/null; cat scripts/gis.js; } | sha1sum | cut -c1-12)" >> "$GITHUB_OUTPUT"
         env:
           GH_TOKEN: ${{ github.token }}
       - uses: actions/cache@v4

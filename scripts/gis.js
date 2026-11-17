@@ -3,6 +3,7 @@
 // 내보내는 줄: {"c":[[경도,위도],...],"t":{OSM식 태그}} (바깥 링만)
 // 필드 이름은 A0~A28 번호뿐이라, 2026년 배포본을 쓴 공개 사례 두 곳에서 같은 뜻으로 확인한 것만 씀:
 //   A9 용도명, A13 사용승인일자, A16 높이(m, 없으면 0), A26 지상층수.  구조명은 값에 '구조'가 들어가는 칸을 찾아 씀
+// 2026-11-13 변동분(CH_D010_00_20261113, 사용자가 받은 실제 파일)으로 확인: A9 단독주택, A11 벽돌구조, A13 1983-08-27, A16 14.4, A24 건물명, A26 5, A29 변동구분(I 신규·U 수정·D 삭제), EUC-KR, EPSG:5186
 // 배포본마다 번호가 바뀔 수 있으므로 처음 3000개로 값이 그럴듯한지 검사하고, 아니면 실제 필드를 보여 주고 멈춤
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -53,6 +54,7 @@ export function checkFields(rows) {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   let buf = [], structure, n = 0;
   const out = ({ properties: p, geometry: g }) => {
+    if (p.A29 === 'D') return; // 변동분 파일의 삭제 건
     for (const poly of g?.type === 'Polygon' ? [g.coordinates] : g?.type === 'MultiPolygon' ? g.coordinates : []) {
       process.stdout.write(JSON.stringify({ c: poly[0].map(([x, y]) => [+x.toFixed(6), +y.toFixed(6)]), t: gisTags(p, structure) }) + '\n');
       n++;

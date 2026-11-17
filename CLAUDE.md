@@ -10,7 +10,7 @@
 
 ## 데이터
 - 건물·도로: OpenStreetMap — Geofabrik 한국 추출본(.osm.pbf)을 `osmium-tool`로 가공 (`scripts/build-tiles.js`)
-- 공식 건물: 국토교통부 GIS건물통합정보(건축물대장 연계, 전국 약 666만 동, SHP, 공공누리 제1유형 — 출처 표기). 브이월드에서 로그인해 받아야 해서 CI가 직접 못 받음 → 받은 ZIP을 저장소 GitHub 릴리스 `gis-buildings`에 올리면 `scripts/fetch-gis.sh`가 받아 `ogr2ogr`(EPSG:5186→4326, 한글 CP949)와 `scripts/gis.js`로 `data/gis.ndjson`을 만듦. 필드는 A9 용도명·A13 사용승인일·A16 높이(0이면 없음)·A26 지상층수(2026년 배포본 공개 사례 두 곳 기준), 구조명은 값으로 찾음. 번호가 다르면 변환이 멈추고 첫 레코드를 보여 줌. 있으면 가장 먼저 넣고 OSM·Overture는 겹치지 않는 것만 더함
+- 공식 건물: 국토교통부 GIS건물통합정보(건축물대장 연계, 전국 약 666만 동, SHP, 공공누리 제1유형 — 출처 표기). 브이월드에서 로그인해 받아야 해서 CI가 직접 못 받음 → 받은 ZIP을 저장소 GitHub 릴리스 `gis-buildings`에 올리거나(큰 파일) `data-src/gis/`에 넣으면(작은 파일 — 지금 2026-11-13 일별 변동분 `CH_D010_00_20261113.zip` 20,622동, 대부분 경기도. 전국 전체는 `AL_D010_시도코드_날짜` 파일) `scripts/fetch-gis.sh`가 받아 `ogr2ogr`(EPSG:5186→4326, 한글 CP949)와 `scripts/gis.js`로 `data/gis.ndjson`을 만듦. 필드는 A9 용도명·A13 사용승인일·A16 높이(0이면 없음)·A26 지상층수(2026년 배포본 공개 사례 두 곳 기준), 구조명은 값으로 찾음. 번호가 다르면 변환이 멈추고 첫 레코드를 보여 줌. 있으면 가장 먼저 넣고 OSM·Overture는 겹치지 않는 것만 더함
 - 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json.gz`(gzip, 게임이 `src/tiledata.js`로 풂 — 1GB 한도 때문), 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
 - 빠진 건물 보충: Overture Maps 건물 중 OSM 출처가 아닌 것(위성사진 자동 추출 등)을 `scripts/fetch-overture.sh`로 받아 `data/overture.ndjson`에 두면 `build-tiles.js`가 더함. 한국 경계(Geofabrik .poly) 안, 기존 건물과 안 겹치는 것만
 - 땅 덮개: OSM 숲·풀밭·공원·논밭 다각형을 타일마다 64×64 칸으로 칠해 `land`에 넣음(`src/land.js`), 게임은 땅 꼭짓점 색으로 씀
@@ -32,7 +32,7 @@
 - 단위는 실제 미터, 주인공 키 1.8m
 - 플레이어 주변 타일만 불러오고 먼 타일은 해제(스트리밍)
 - 좌표는 타일마다 원점을 따로 잡아 부동소수점 떨림 방지 (타일 데이터는 원점 기준 미터)
-- 큰 데이터 파일은 저장소에 올리지 않음 (`public/data/`는 gitignore, 스크립트로 생성)
+- 큰 데이터 파일은 저장소에 올리지 않음 (`public/data/`는 gitignore, 스크립트로 생성). 예외: `data-src/gis/`의 작은 공식 건물 ZIP
 - `military` 태그가 붙은 시설과, 군 부지(`landuse=military`, `military=*`) 다각형 안의 건물·도로는 데이터에서 제외
 - 출처 표기 필수 (© OpenStreetMap contributors · Overture Maps · AWS Terrain Tiles)
 - 배포 사이트는 GitHub Pages 1GB 한도 → CI가 타일 950MB를 넘으면 배포 전에 멈춤
