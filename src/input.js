@@ -1,6 +1,6 @@
-// 키보드·마우스·터치 입력 → { yaw, pitch, mx, my, jump, web, zip, run, lookAt }
+// 키보드·마우스·터치 입력 → { yaw, pitch, mx, my, jump, web, zip, run, glide, lookAt }
 export function createInput(canvas) {
-  const s = { yaw: 0, pitch: -0.12, mx: 0, my: 0, jump: false, web: false, zip: false, run: false, lookAt: 0 }; // lookAt: 마지막으로 시점을 직접 돌린 시각
+  const s = { yaw: 0, pitch: -0.12, mx: 0, my: 0, jump: false, web: false, zip: false, run: false, glide: false, lookAt: 0 }; // lookAt: 마지막으로 시점을 직접 돌린 시각
   const keys = new Set();
   const look = (dx, dy, k) => {
     s.lookAt = performance.now();
@@ -12,6 +12,7 @@ export function createInput(canvas) {
     s.my = (keys.has('KeyW') ? 1 : 0) - (keys.has('KeyS') ? 1 : 0);
     s.run = keys.has('ShiftLeft') || keys.has('ShiftRight');
     s.zip = keys.has('KeyE') || keys.has('Mouse2');
+    s.glide = keys.has('Space'); // 점프를 누르고 있으면 공중에서 활공
   };
   addEventListener('keydown', (e) => {
     if (e.target.tagName === 'INPUT') return; // 도시 검색창에 입력 중
@@ -55,6 +56,6 @@ export function createInput(canvas) {
   };
   btn('btn-web', () => (s.web = true), () => (s.web = false));
   btn('btn-zip', () => (s.zip = true), () => (s.zip = false));
-  btn('btn-jump', () => (s.jump = true), () => {});
+  btn('btn-jump', () => (s.jump = s.glide = true), () => (s.glide = false));
   return s;
 }

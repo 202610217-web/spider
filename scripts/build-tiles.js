@@ -5,6 +5,7 @@ import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { buildingHeight } from '../src/height.js';
+import { buildingStyle } from '../src/style.js';
 import { Z, S, lonLatToTile } from '../src/tile.js';
 import { ROAD_WIDTH, densify } from '../src/roads.js';
 import { inside } from '../src/collide.js';
@@ -19,6 +20,8 @@ if (!existsSync(SRC)) {
 }
 
 const EXPORT = ['-f', 'geojsonseq', '-x', 'print_record_separator=false', '--overwrite'];
+// 닫힌 링의 넓이(m²)
+const area = (r) => Math.abs(r.reduce((a, [x, y], i) => a + (i ? r[i - 1][0] * y - x * r[i - 1][1] : 0), 0)) / 2;
 const tileOf = ([fx, fy]) => `${Math.floor(fx)}/${Math.floor(fy)}`;
 
 // 군 부지(landuse=military, military=*) 다각형을 먼저 모음 → 그 안의 건물·도로는 태그가 없어도 제외
@@ -81,7 +84,7 @@ for await (const line of createInterface({ input: osmium.stdout })) {
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
       const pts = poly[0].map(([lon, lat]) => lonLatToTile(lon, lat)); // 바깥 링만
       if (pts.some(inMilitary)) skipped++; // 꼭짓점 하나라도 군 부지 안이면 제외
-      else put('buildings', pts, (ring) => ({ h, ring }));
+      else put('buildings', pts, (ring) => ({ h, s: buildingStyle(t, h, area(ring)), ring }));
     }
   }
 }

@@ -1,15 +1,14 @@
 import * as THREE from 'three';
-import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { Z, S } from './tile.js';
 import { makeCollider } from './collide.js';
 import { addRibbon, densify } from './roads.js';
 import { N, tileHeights, heightAt } from './terrain.js';
+import { buildingGeometries, buildingMaterials } from './buildings.js';
 
 const BASE = import.meta.env.VITE_TILE_URL || import.meta.env.BASE_URL + 'data/tiles'; // VITE_TILE_URL: R2 공개 주소
 const LOAD = 1, KEEP = 2; // 주변 3×3 타일 로드, 5×5 밖은 해제
 const SINK = 8; // 경사지에서 건물 밑이 뜨지 않게 땅속으로 내리는 깊이(m)
 const groundMat = new THREE.MeshLambertMaterial({ color: 0x8a9a7a });
-const mat = new THREE.MeshLambertMaterial({ color: 0xd8d2c4 });
 // 바닥과 겹쳐 깜빡이지 않게 살짝 띄우고 깊이도 당김
 const roadMat = new THREE.MeshBasicMaterial({ color: 0x4a4d52, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
 
@@ -37,12 +36,11 @@ export function createTiles(scene, ox, oy, onChange) {
     tile.group.add(new THREE.Mesh(ground, groundMat));
 
     if (buildings.length) {
-      tile.group.add(new THREE.Mesh(mergeGeometries(buildings.map(({ h, ring }) => {
-        const base = Math.min(...ring.map(([x, y]) => heightAt(hgt, x, -y))); // 바닥 = 둘레에서 가장 낮은 땅
-        tile.colliders.push(makeCollider(ring, off, base - SINK, base + h));
-        return new THREE.ExtrudeGeometry(new THREE.Shape(ring.map(([x, y]) => new THREE.Vector2(x, y))), { depth: h + SINK, bevelEnabled: false })
-          .rotateX(-Math.PI / 2).translate(0, base - SINK, 0); // 바닥(x, 북) → (x, -z), 돌출 → +y
-      })), mat));
+      const baseOf = (ring) => Math.min(...ring.map(([x, y]) => heightAt(hgt, x, -y))); // 바닥 = 둘레에서 가장 낮은 땅
+      for (const { h, ring } of buildings) { const base = baseOf(ring); tile.colliders.push(makeCollider(ring, off, base - SINK, base + h)); }
+      const geo = buildingGeometries(buildings, baseOf, SINK), mats = buildingMaterials();
+      geo.walls.forEach((g, k) => g && tile.group.add(new THREE.Mesh(g, mats.walls[k])));
+      tile.group.add(new THREE.Mesh(geo.roof, mats.roof));
     }
     if (roads.length) {
       const pos = [], idx = [];

@@ -1,0 +1,15 @@
+import assert from 'node:assert';
+import { buildingStyle as s, LOOKS } from './style.js';
+assert.equal(s({ building: 'apartments' }, 45, 800), 1);
+assert.equal(s({ building: 'house' }, 6, 80), 0);
+assert.equal(s({ building: 'residential' }, 12, 200), 0);
+assert.equal(s({ building: 'residential' }, 30, 600), 1);
+assert.equal(s({ building: 'office' }, 24, 500), 3);
+assert.equal(s({ building: 'warehouse' }, 9, 2000), 4);
+assert.equal(s({ building: 'yes', historic: 'yes' }, 8, 300), 5);
+assert.equal(s({ building: 'yes' }, 20, 90), 0, 'small unknown → house');
+assert.equal(s({ building: 'yes' }, 20, 400), 2, 'mid unknown → commercial');
+assert.equal(s({ building: 'yes' }, 60, 700), 1, 'tall narrow unknown → apartment');
+assert.equal(s({ building: 'yes' }, 60, 3000), 3, 'tall wide unknown → office');
+assert.equal(LOOKS.length, 6);
+console.log('style ok');
