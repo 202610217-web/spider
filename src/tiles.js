@@ -18,6 +18,8 @@ export function createTiles(scene, ox, oy, onChange) {
   const loaded = new Map(); // "x/y" → { group, colliders, hgt, roads, off } (로딩 중이면 null)
   const colliders = () => [...loaded.values()].flatMap((t) => t?.colliders ?? []);
 
+  let turn = Promise.resolve(); // 타일 메시 만들기는 한 프레임에 하나씩 (여러 타일이 한꺼번에 도착해도 끊김을 나눔)
+
   async function load(tx, ty, key) {
     loaded.set(key, null);
     // 타일 없음(바다·빈 땅) 또는 개발 서버의 HTML 응답 → 빈 타일
@@ -25,6 +27,8 @@ export function createTiles(scene, ox, oy, onChange) {
       fetch(`${BASE}/${Z}/${key}.json`).then((r) => r.json()).catch(() => ({})),
       tileHeights(tx, ty),
     ]);
+    // shortcut: 건물이 아주 많은 타일 하나는 여전히 한 프레임에 만들어 잠깐 끊길 수 있음, 눈에 띄면 워커로 옮기기
+    await (turn = turn.then(() => new Promise(requestAnimationFrame)));
     if (!loaded.has(key)) return; // 로딩 중 범위를 벗어남
     const off = new THREE.Vector3((tx - ox) * S, 0, (ty - oy) * S);
     // 지오메트리는 타일 기준 좌표, 그룹 위치만 옮김 → 원점에서 멀어져도 떨림 없음
