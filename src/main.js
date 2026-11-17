@@ -111,6 +111,7 @@ renderer.setAnimationLoop((now) => {
   while (acc >= STEP) { player.step(STEP, move, input.jump, opts); input.jump = false; acc -= STEP; }
 
   tiles.update(player.pos, player.vel);
+  tiles.animate(now / 1000);
 
   hero.position.copy(player.pos);
   const hv = Math.hypot(player.vel.x, player.vel.z);
@@ -148,7 +149,7 @@ renderer.setAnimationLoop((now) => {
   let dist = CAM_DIST;
   for (const c of near) dist = Math.min(dist, rayHit(c, camRay) - 0.3);
   camera.position.copy(target).addScaledVector(camRay.direction, Math.max(dist, 1));
-  camera.position.y = Math.max(camera.position.y, tiles.groundAt(camera.position.x, camera.position.z) + 0.5);
+  camera.position.y = Math.max(camera.position.y, tiles.groundAt(camera.position.x, camera.position.z, player.pos.y) + 0.5); // 다리 위에 있으면 카메라도 상판 위로
   camera.lookAt(target);
   // 빠를수록 시야각을 넓혀 속도감을 줌
   camera.fov += (FOV + Math.min(25, player.vel.length() * 0.45) - camera.fov) * Math.min(1, dt * 3);

@@ -1,4 +1,4 @@
-// OSM 추출본(.osm.pbf) → 타일별 건물·도로·물·횡단보도 JSON (public/data/tiles/15/x/y.json)
+// OSM 추출본(.osm.pbf) → 타일별 건물·도로·물·횡단보도·신호등 JSON (public/data/tiles/15/x/y.json)
 // 사용: node scripts/build-tiles.js [입력.osm.pbf]   (osmium-tool 필요)
 // 좌표는 타일 북서쪽 모서리 기준 미터: [동쪽, 북쪽(음수)]
 import { spawn, execFileSync } from 'node:child_process';
@@ -46,15 +46,15 @@ for (const line of readFileSync('data/military.geojsonseq', 'utf8').split('\n'))
 const inMilitary = (p) => military.get(tileOf(p))?.some((ring) => inside(ring, p[0], p[1])) ?? false;
 
 // 건물(멀티폴리곤 포함)·도로·물(강·호수)·횡단보도만 추린 뒤 한 줄에 하나씩 GeoJSON으로 내보냄
-execFileSync('osmium', ['tags-filter', SRC, 'a/building', 'w/highway', 'a/natural=water', 'n/highway=crossing', '-o', 'data/buildings.osm.pbf', '--overwrite'], { stdio: 'inherit' });
+execFileSync('osmium', ['tags-filter', SRC, 'a/building', 'w/highway', 'a/natural=water', 'n/highway=crossing', 'n/highway=traffic_signals', '-o', 'data/buildings.osm.pbf', '--overwrite'], { stdio: 'inherit' });
 const osmium = spawn('osmium', ['export', 'data/buildings.osm.pbf', ...EXPORT, '--geometry-types=polygon,linestring,point', '-o', '-'],
   { stdio: ['ignore', 'pipe', 'inherit'] });
 const exit = new Promise((r) => osmium.on('close', r));
 
-const tiles = new Map(); // "x/y" → { buildings, roads, water: JSON 문자열[], cross: 횡단보도 [동, 북][] }
-const tile = (key) => tiles.get(key) ?? tiles.set(key, { buildings: [], roads: [], water: [], cross: [] }).get(key);
+const tiles = new Map(); // "x/y" → { buildings, roads, water: JSON 문자열[], cross·lights: 횡단보도·신호등 [동, 북][] }
+const tile = (key) => tiles.get(key) ?? tiles.set(key, { buildings: [], roads: [], water: [], cross: [], lights: [] }).get(key);
 const meters = (tx, ty) => ([fx, fy]) => [+((fx - tx) * S).toFixed(1), +(-(fy - ty) * S).toFixed(1)];
-const count = { buildings: 0, roads: 0, water: 0, cross: 0 };
+const count = { buildings: 0, roads: 0, water: 0, cross: 0, lights: 0, bridges: 0 };
 let skipped = 0;
 // pts(전역 타일 좌표)를 첫 점이 속한 타일 기준 미터로 바꿔 그 타일에 넣음
 function put(kind, pts, props) {
@@ -63,9 +63,9 @@ function put(kind, pts, props) {
   count[kind]++;
 }
 // 도로는 40m 이하 구간으로 쪼갠 뒤 타일이 바뀌는 점에서 잘라 각 타일에 나눠 넣음 (조각은 끝점을 공유해 이어짐). 군 부지 안의 점은 뺌
-function putRoad(coords, w) {
+function putRoad(coords, w, b) {
   let run = [];
-  const flush = () => { if (run.length > 1) put('roads', run, (line) => ({ w, line })); run = []; };
+  const flush = () => { if (run.length > 1) put('roads', run, (line) => (b ? { w, line, b: 1 } : { w, line })); run = []; };
   for (const p of densify(coords.map(([lon, lat]) => lonLatToTile(lon, lat)), 40 / S)) {
     if (inMilitary(p)) { skipped++; flush(); continue; }
     if (run.length && tileOf(p) !== tileOf(run[0])) { run.push(p); flush(); }
@@ -77,12 +77,14 @@ for await (const line of createInterface({ input: osmium.stdout })) {
   if (!line) continue;
   const { properties: t, geometry: g } = JSON.parse(line);
   if (t.military || t.building === 'military' || t.landuse === 'military') { skipped++; continue; }
-  if (g.type === 'Point') { // 횡단보도 위치만 모아 두고, 방향은 도로를 다 읽은 뒤에 정함
+  if (g.type === 'Point') { // 횡단보도·신호등 위치만 모아 두고, 방향은 도로를 다 읽은 뒤에 정함
     const p = lonLatToTile(...g.coordinates), tx = Math.floor(p[0]), ty = Math.floor(p[1]);
-    if (t.highway === 'crossing' && !inMilitary(p)) tile(`${tx}/${ty}`).cross.push(meters(tx, ty)(p));
+    const kind = { crossing: 'cross', traffic_signals: 'lights' }[t.highway];
+    if (kind && !inMilitary(p)) tile(`${tx}/${ty}`)[kind].push(meters(tx, ty)(p));
   } else if (g.type === 'LineString') {
     const w = ROAD_WIDTH[t.highway];
-    if (w && !t.tunnel) putRoad(g.coordinates, w); // 터널(지하)은 제외
+    const b = !!t.bridge && t.bridge !== 'no'; // 다리·고가: 게임에서 상판을 띄움
+    if (w && !t.tunnel) { putRoad(g.coordinates, w, b); if (b) count.bridges++; } // 터널(지하)은 제외
   } else if (t.building) {
     const h = buildingHeight(t);
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
@@ -110,10 +112,11 @@ if (await exit) throw new Error('osmium export 실패');
 rmSync(OUT, { recursive: true, force: true });
 for (const [key, t] of tiles) {
   mkdirSync(`${OUT}/${Z}/${key.split('/')[0]}`, { recursive: true });
-  // 횡단보도: 3m 안의 가장 가까운 도로에 맞춰 [동, 북, 도로 방향, 도로 폭]으로 (도로에서 먼 것은 버림)
-  const roads = t.cross.length ? JSON.parse(`[${t.roads.join(',')}]`) : [];
-  const cross = t.cross.map(([x, y]) => [x, y, nearestRoad(roads, x, y)]).filter(([, , n]) => n.d <= 3).map(([x, y, n]) => [x, y, +n.ang.toFixed(2), n.w]);
-  count.cross += cross.length;
-  writeFileSync(`${OUT}/${Z}/${key}.json`, `{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)}}`);
+  // 횡단보도·신호등: 3m 안의 가장 가까운 도로에 맞춰 [동, 북, 도로 방향, 도로 폭]으로 (도로에서 먼 것은 버림)
+  const roads = t.cross.length + t.lights.length ? JSON.parse(`[${t.roads.join(',')}]`) : [];
+  const snap = (pts) => pts.map(([x, y]) => [x, y, nearestRoad(roads, x, y)]).filter(([, , n]) => n.d <= 3).map(([x, y, n]) => [x, y, +n.ang.toFixed(2), n.w]);
+  const cross = snap(t.cross), lights = snap(t.lights);
+  count.cross += cross.length; count.lights += lights.length;
+  writeFileSync(`${OUT}/${Z}/${key}.json`, `{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)},"lights":${JSON.stringify(lights)}}`);
 }
-console.log(`건물 ${count.buildings}개, 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);
+console.log(`건물 ${count.buildings}개, 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);

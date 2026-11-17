@@ -58,8 +58,22 @@ let steps = 0;
 while (p.anchor && steps++ < 600) p.step(1 / 120, still, false);
 assert.ok(!p.anchor && !p.zipping && steps < 360 && p.vel.length() > 30 && p.pos.x > 50, `zip ${steps} ${p.vel.length()}`);
 
-// 활공: 떨어지는 속도가 제한됨
-p = new Player([]); p.pos.set(0, 500, 0);
-for (let i = 0; i < 240; i++) p.step(1 / 120, still, false, { glide: true });
-assert.ok(p.vel.y >= -4.001 && p.vel.y < -3, `glide ${p.vel.y}`);
+// 활공: 하강 속도가 10m/s쯤으로 줄고, 스틱 쪽으로 서서히 나아감. 진행 방향으로 밀면 급강하, 반대로 당기면 버팀
+p = new Player([]); p.pos.set(0, 2000, 0);
+for (let i = 0; i < 360; i++) p.step(1 / 120, still, false);
+assert.ok(p.vel.y < -70, '활공 안 하면 계속 빨라짐');
+for (let i = 0; i < 360; i++) p.step(1 / 120, still, false, { glide: true });
+assert.ok(Math.abs(p.vel.y + 10) < 0.5 && Math.hypot(p.vel.x, p.vel.z) < 0.01, `glide ${p.vel.y}`);
+const fwd = new THREE.Vector3(1, 0, 0);
+for (let i = 0; i < 480; i++) p.step(1 / 120, fwd, false, { glide: true });
+assert.ok(Math.abs(p.vel.y + 22) < 1 && p.vel.x > 28 && Math.abs(p.vel.z) < 0.01, `dive ${p.vel.y} ${p.vel.x}`);
+for (let i = 0; i < 120; i++) p.step(1 / 120, new THREE.Vector3(0, 0, 1), false, { glide: true });
+assert.ok(p.vel.z > 5 && p.vel.x > 5, `옆으로 밀면 조금씩 돎 ${p.vel.x} ${p.vel.z}`);
+for (let i = 0; i < 600; i++) p.step(1 / 120, new THREE.Vector3(-p.vel.x, 0, -p.vel.z).normalize(), false, { glide: true });
+assert.ok(p.vel.y > -10 && p.vel.y < -4, `flare ${p.vel.y}`);
+
+// 스윙 추진은 줄 아래쪽 구간에서만: 걸린 곳보다 높이 떠 있으면 중력만 받음
+p = new Player([]); p.pos.set(0, 50, 0); p.attach(new THREE.Vector3(0, 40, 20));
+p.step(1 / 120, new THREE.Vector3(0, 0, 1), false);
+assert.ok(p.vel.z === 0 && p.vel.y < 0, `no thrust above the anchor ${p.vel.z}`);
 console.log('player ok');

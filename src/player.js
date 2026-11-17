@@ -3,13 +3,14 @@ import { pushOut } from './collide.js';
 
 export const R = 0.5;            // 충돌 구 반지름(m)
 const G = -25, WALK = 5, RUN = 11, JUMP = 10, AIR = 8, SWING = 14, MAX_SWING = 45, MIN_ROPE = 5, CLIMB = 7;
-const ZIP = 50, ZIP_ACC = 90, ZIP_END = 4, GLIDE = 4;
+const ZIP = 50, ZIP_ACC = 90, ZIP_END = 4;
+const SINK = 10, DIVE = 12, FLARE = 5, GLIDE_RATIO = 1.5, DRAG = 3, STEER = 1.2; // 활공: 기본 하강 10m/s, 앞으로 밀면 +12, 당기면 -5
 const n = new THREE.Vector3();
 
 export class Player {
   constructor(colliders) {
     this.colliders = colliders;  // 건물 충돌체 (collide.js)
-    this.groundAt = () => 0;     // (x, z) → 땅 높이
+    this.groundAt = () => 0;     // (x, z, 내 높이) → 땅 높이
     this.pos = new THREE.Vector3(0, 50, 0);
     this.vel = new THREE.Vector3();
     this.anchor = null;
@@ -33,11 +34,10 @@ export class Player {
   release() {
     if (!this.anchor) return;
     this.anchor = null;
-    if (!this.zipping) { this.vel.multiplyScalar(1.08); this.vel.y += 3; } // 놓는 순간 살짝 튕겨 다음 스윙으로 잇기 쉽게
     this.zipping = false;
   }
 
-  // move: 월드 xz 방향(길이 ≤1), jump: 이번 스텝 점프 여부, run: 달리기, glide: 활공(공중에서 천천히 하강)
+  // move: 월드 xz 방향(길이 ≤1), jump: 이번 스텝 점프 여부, run: 달리기, glide: 활공(공중에서 느리게 떨어지며 조종)
   step(dt, move, jump, { run = false, glide = false } = {}) {
     const v = this.vel;
     let gravity = G;
@@ -51,7 +51,8 @@ export class Player {
       let dx = move.x, dz = move.z;
       const hv = Math.hypot(v.x, v.z);
       if (dx * dx + dz * dz < 0.01 && hv > 1) { dx = v.x / hv; dz = v.z / hv; }
-      if (hv < MAX_SWING) { v.x += dx * SWING * dt; v.z += dz * SWING * dt; }
+      // 줄에 매달려 내려가는 아래쪽 구간에서만 힘을 보탬(그네를 구르듯). 위쪽에서는 중력만 받아 끝없이 떠오르지 않음
+      if (hv < MAX_SWING && this.pos.y < this.anchor.y - this.ropeLen * 0.5) { v.x += dx * SWING * dt; v.z += dz * SWING * dt; }
     } else if ((this.climbing = !!this.wall && (this.climbing || into < -0.3) && !(this.onGround && into > -0.3))) { // 땅에서는 벽 쪽으로 밀 때만 매달림
       // 벽타기: 벽 쪽으로 밀면 오르고 반대로 당기면 내려감, 나란한 입력은 옆으로, 가만히 있으면 매달림. 점프는 벽을 차고 뛰어내림
       const w = this.wall;
@@ -65,7 +66,16 @@ export class Player {
       v.x += move.x * AIR * dt; v.z += move.z * AIR * dt;
     }
     v.y += gravity * dt;
-    if (glide && !this.anchor && !this.onGround && !this.climbing && v.y < -GLIDE) v.y = -GLIDE;
+    if (glide && !this.anchor && !this.onGround && !this.climbing && v.y < 0) {
+      // 활공(스카이다이빙): 공기 저항으로 하강 속도가 줄고 그만큼 앞으로 나아감. 스틱으로 방향을 조금씩 틀고, 진행 방향으로 밀면 급강하·당기면 버팀
+      const hv = Math.hypot(v.x, v.z), f = hv > 1 ? (move.x * v.x + move.z * v.z) / hv : 0;
+      const sink = SINK + f * (f > 0 ? DIVE : FLARE);
+      if (v.y < -sink) v.y += (-sink - v.y) * Math.min(1, DRAG * dt) - G * dt; // 목표 속도보다 빠르면 저항이 중력을 이기고 남는 속도를 줄임
+      let dx = move.x, dz = move.z;
+      if (dx * dx + dz * dz < 0.01 && hv > 1) { dx = v.x / hv; dz = v.z / hv; } // 안 밀면 가던 방향 그대로
+      const k = Math.min(1, STEER * dt), s = sink * GLIDE_RATIO;
+      v.x += (dx * s - v.x) * k; v.z += (dz * s - v.z) * k;
+    }
     this.pos.addScaledVector(v, dt);
 
     if (this.anchor && !this.zipping) {
@@ -83,7 +93,7 @@ export class Player {
 
     this.onGround = false;
     this.wall = null;
-    const g = this.groundAt(this.pos.x, this.pos.z) + R;
+    const g = this.groundAt(this.pos.x, this.pos.z, this.pos.y) + R; // 높이도 넘김: 다리 위에 있을 때만 다리 상판을 땅으로 봄
     if (this.pos.y < g) { this.pos.y = g; if (v.y < 0) v.y = 0; this.onGround = true; }
     for (const c of this.colliders) {
       const hit = pushOut(c, this.pos, R);

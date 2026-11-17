@@ -14,4 +14,7 @@ assert.ok(findAnchor(pos, 0, [tower], 10).z > 21, 'out of range → sky, not the
 const slope = (x, z) => Math.max(0, z - 20) * 2; // 20m 앞부터 가파르게 솟는 비탈
 const g = findAnchor(pos, 0, [], 80, slope);
 assert.ok(g && g.z > 20 && g.y > 1 && g.y <= slope(g.x, g.z), 'attaches to the hillside');
+// 허공 줄은 땅에서 60m까지만: 이미 높이 떠 있으면 걸 곳이 없음 (끝없이 올라가지 못함)
+assert.equal(findAnchor(new THREE.Vector3(0, 70, 0), 0, [], 80), null);
+assert.ok(findAnchor(new THREE.Vector3(0, 45, 0), 0, [], 80).y === 60);
 console.log('web ok');

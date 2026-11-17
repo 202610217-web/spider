@@ -1,5 +1,5 @@
 import assert from 'node:assert';
-import { street, nearestRoad } from './street.js';
+import { street, nearestRoad, along } from './street.js';
 import { clipRing } from './clip.js';
 import { offset } from './roads.js';
 
@@ -16,6 +16,12 @@ assert.ok(s.walk.idx.length && s.yellow.idx.length && s.white.idx.length);
 for (const g of [s.walk, s.white, s.yellow]) assert.ok(Math.max(...g.idx) < g.pos.length / 3 && g.pos.every(Number.isFinite));
 const whiteNoCross = street(roads, [], () => 10).white.pos.length;
 assert.equal((s.white.pos.length - whiteNoCross) / 18, 14, '폭 14m → 횡단보도 줄 14개');
+
+// 다리: 상판 높이 함수를 가진 도로는 인도·차선이 그 높이를 따르고 가로수가 없음
+const br = street([{ w: 14, line: [[0, 0], [100, 0]], y: () => 30 }], [], () => 10);
+assert.ok(br.trees.length === 0 && Math.abs(br.walk.pos[1] - 30.2) < 1e-9 && Math.abs(br.yellow.pos[1] - 30.36) < 1e-9);
+const a = along([[0, 0], [10, 0], [20, 0]], [0, 10, 10], 5, 3);
+assert.ok(a.d === 3 && a.y === 5);
 
 // 타일로 자르기
 const sq = [[-1, -1], [2, -1], [2, 2], [-1, 2]];
