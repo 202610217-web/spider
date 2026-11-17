@@ -221,7 +221,7 @@ export function createTiles(scene, ox, oy, onChange) {
     }
     return g;
   }
-  // 물결을 흘려보냄 (t: 초)
-  const animate = (t) => M?.water.normalMap.offset.set(t * 0.03, t * 0.02);
+  // 물결을 흘려보내고, 낮일수록 하늘을 더 비춤 (t: 초, day: 0 밤 ~ 1 낮)
+  const animate = (t, day = 1) => { if (!M) return; M.water.normalMap.offset.set(t * 0.03, t * 0.02); M.water.reflectivity = 0.1 + 0.45 * day; };
   return { update, groundAt, animate, loaded };
 }

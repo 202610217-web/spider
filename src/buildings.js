@@ -102,6 +102,9 @@ function wallSurface(kind) {
   const canvas = (fill) => { const c = Object.assign(document.createElement('canvas'), { width: 256, height: 256 }), x = c.getContext('2d'); x.fillStyle = fill; x.fillRect(0, 0, 256, 256); return x; };
   const x = canvas('#fff'), nx = canvas(FLAT); // 그림이 오기 전(또는 못 받으면) 흰 바탕·평평한 면 = 건물 색 그대로
   const map = sharp(new THREE.CanvasTexture(x.canvas)), normalMap = sharp(new THREE.CanvasTexture(nx.canvas), false);
+  // 밤 창문 불빛: 4×4 칸(12m × 12m)마다 창 몇 개만 켜짐 — 따뜻한 전등·흰 형광등이 섞이게. 세기는 main.js가 시간대로 정함
+  const ex = canvas('#000'), emissiveMap = sharp(new THREE.CanvasTexture(ex.canvas));
+  emissiveMap.repeat.set(1 / 4, 1 / 4);
   const load = (file) => file && new Promise((done) => Object.assign(new Image(), { onload() { done(this); }, onerror() { done(); }, src: url(file) }));
   const [name, win] = LAYERS[kind];
   Promise.all([load(name && name + '.jpg'), load(win), load(name && name + '_n.jpg')]).then(([p, w, n]) => {
@@ -112,10 +115,19 @@ function wallSurface(kind) {
       const m = canvas('rgba(0,0,0,0)'); // 창 모양만 남긴 평평한 색
       m.drawImage(w, 0, 0, 256, 256); m.globalCompositeOperation = 'source-in'; m.fillStyle = FLAT; m.fillRect(0, 0, 256, 256);
       nx.drawImage(m.canvas, 0, 0);
+      let seed = kind * 97 + 13; const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+      for (let j = 0; j < 4; j++) for (let i = 0; i < 4; i++) {
+        if (rnd() > 0.3) continue; // 꺼진 창 (열 개 중 일곱)
+        const lit = canvas('rgba(0,0,0,0)');
+        lit.drawImage(w, 0, 0, 256, 256); lit.globalCompositeOperation = 'source-in';
+        lit.fillStyle = rnd() < 0.7 ? `rgba(255,200,120,${0.6 + rnd() * 0.4})` : `rgba(225,238,255,${0.6 + rnd() * 0.4})`; lit.fillRect(0, 0, 256, 256);
+        ex.drawImage(lit.canvas, i * 64, j * 64, 64, 64);
+      }
+      emissiveMap.needsUpdate = true;
     }
     map.needsUpdate = normalMap.needsUpdate = true;
   });
-  return { map, normalMap };
+  return { map, normalMap, emissiveMap, emissive: 0xffffff, emissiveIntensity: 0 };
 }
 
 // 간판 그림 16종을 한 장에 (2열 × 8행, 한 칸 256×64). 실제 상호가 아닌 업종 이름만

@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:tiles": "node --max-old-space-size=8192 scripts/build-tiles.js",
-    "test": "node src/hero.test.js && node src/perf.test.js && node src/height.test.js && node src/player.test.js && node src/roads.test.js && node src/web.test.js && node src/terrain.test.js && node src/collide.test.js && node src/style.test.js && node src/buildings.test.js && node src/street.test.js && node src/cities.test.js && node src/land.test.js && node src/input.test.js && node src/region.test.js && node scripts/poly.test.js && node src/png.test.js"
+    "test": "node src/hero.test.js && node src/perf.test.js && node src/height.test.js && node src/player.test.js && node src/roads.test.js && node src/web.test.js && node src/terrain.test.js && node src/collide.test.js && node src/style.test.js && node src/buildings.test.js && node src/street.test.js && node src/cities.test.js && node src/land.test.js && node src/input.test.js && node src/daylight.test.js && node src/region.test.js && node scripts/poly.test.js && node src/png.test.js"
   },
   "dependencies": {
     "three": "^0.187.0"

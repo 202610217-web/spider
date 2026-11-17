@@ -11,6 +11,9 @@ import { createMinimap } from './minimap.js';
 import { setupSearch } from './search.js';
 import { setupMenu } from './menu.js';
 import { watchRegion } from './region.js';
+import { Sky } from 'three/addons/objects/Sky.js';
+import { sunDirection, daylight, HOURS_PER_MINUTE } from './daylight.js';
+import { buildingMaterials } from './buildings.js';
 
 const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
@@ -23,6 +26,7 @@ addEventListener('gesturestart', (e) => e.preventDefault()); // iOS 사파리는
 // 휴대폰·태블릿은 화면이 작아 해상도 1.5배로 시작(60fps 우선), 여유가 있으면 해상도 조절기가 올림
 const maxRatio = Math.min(devicePixelRatio, document.body.classList.contains('touch') ? 1.5 : 2), governor = createGovernor(maxRatio, maxRatio * 0.5);
 renderer.setPixelRatio(maxRatio);
+renderer.toneMapping = THREE.ACESFilmicToneMapping; // 하늘(대기 산란)의 밝은 빛과 그늘을 함께 담음. 밝기는 시간대별 노출로
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.autoUpdate = false; // 해와 건물은 안 움직이므로 그림자 지도는 자리를 옮길 때만 다시 그림
 document.body.appendChild(renderer.domElement);
@@ -30,9 +34,53 @@ document.body.appendChild(renderer.domElement);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9cc3e6);
 scene.fog = new THREE.Fog(0x9cc3e6, 300, 950); // 로드 반경(약 1km) 밖은 안개로 가림
-scene.add(new THREE.HemisphereLight(0xffffff, 0x667755, 1.5));
-const sun = new THREE.DirectionalLight(0xffffff, 1.5);
-const SUN = new THREE.Vector3(300, 500, 200), SHADOW = 220, SNAP = 40; // 그림자는 주인공 주변 ±220m만, 40m 움직일 때마다 다시 맞춤
+const hemi = new THREE.HemisphereLight(0xffffff, 0x667755, 1.5);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xffffff, 1.5); // 낮에는 햇빛, 밤에는 달빛
+const SHADOW = 220, SNAP = 40; // 그림자는 주인공 주변 ±220m만, 40m 움직일 때마다 다시 맞춤
+
+// 하늘: 대기 산란으로 계산한 하늘색·노을·해·구름 (Three.js Sky, Preetham 모델). 카메라를 따라다니는 상자, 먼 끝(1000m) 안쪽 크기
+const sky = new Sky();
+sky.scale.setScalar(1000);
+sky.material.uniforms.turbidity.value = 3;
+sky.material.uniforms.rayleigh.value = 1.5;
+scene.add(sky);
+// 별: 밤에만 보임
+const stars = new THREE.Points(
+  new THREE.BufferGeometry().setAttribute('position', new THREE.Float32BufferAttribute(Array.from({ length: 1500 }, () => {
+    const u = Math.random() * 2 * Math.PI, v = Math.random() * 0.95 + 0.05; // 위쪽 반구만
+    const r = Math.sqrt(1 - v * v) * 480;
+    return [Math.cos(u) * r, v * 480, Math.sin(u) * r];
+  }).flat(), 3)),
+  new THREE.PointsMaterial({ color: 0xffffff, size: 1.6, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }),
+);
+scene.add(stars);
+
+// 시각: ?time=시(예 18.5) 가 있으면 그때부터, 없으면 기기의 지금 시각부터. 실제 1분 = 게임 1시간
+const startHour = Number(new URLSearchParams(location.search).get('time') ?? NaN), started = performance.now(), today = new Date();
+const hour0 = Number.isFinite(startHour) ? startHour : today.getHours() + today.getMinutes() / 60;
+const dayOfYear = Math.floor((today - new Date(today.getFullYear(), 0, 0)) / 864e5);
+const lightDir = new THREE.Vector3(), lastShadowDir = new THREE.Vector3();
+const clockEl = document.createElement('span'), regionEl = document.createElement('span');
+let light;
+function updateDaylight(now) {
+  const hour = (hour0 + ((now - started) / 60000) * HOURS_PER_MINUTE) % 24;
+  const s = sunDirection(hour, dayOfYear, lat);
+  light = daylight((Math.asin(s[1]) * 180) / Math.PI);
+  sky.material.uniforms.sunPosition.value.set(...s);
+  sky.material.uniforms.time.value = now / 1000;
+  hemi.color.setHex(light.sky); hemi.groundColor.setHex(light.ground); hemi.intensity = light.hemi;
+  sun.color.setHex(light.sun); sun.intensity = light.sunIntensity;
+  lightDir.set(...(light.moon ? sunDirection(hour + 12, dayOfYear, lat) : s)); // 달은 해의 반대쪽 하늘에 있다고 봄
+  lightDir.y = Math.max(lightDir.y, 0.08); // 해가 지평선에 걸려도 그림자가 끝없이 늘어나지 않게
+  lightDir.normalize();
+  scene.fog.color.setHex(light.fog); scene.background.setHex(light.fog);
+  renderer.toneMappingExposure = light.exposure;
+  stars.material.opacity = light.night;
+  for (const m of buildingMaterials().walls) m.emissiveIntensity = light.night * 0.7; // 밤에는 창문에 불이 켜짐
+  const h = Math.floor(hour), m = Math.floor((hour - h) * 60);
+  clockEl.textContent = `${h < 12 ? '오전' : '오후'} ${((h + 11) % 12) + 1}:${String(m).padStart(2, '0')}`;
+}
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
 Object.assign(sun.shadow.camera, { left: -SHADOW, right: SHADOW, top: SHADOW, bottom: -SHADOW, near: 1, far: 2500 });
@@ -85,8 +133,8 @@ scene.add(blob);
 const move = new THREE.Vector3(), target = new THREE.Vector3();
 const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
-const posEl = document.getElementById('pos');
-const updateRegion = watchRegion((name) => (posEl.textContent = name)); // 미니맵 아래에 "서울특별시 종로구"처럼 표시
+document.getElementById('pos').append(clockEl, regionEl); // 미니맵 아래: 게임 시각과 "서울특별시 종로구" 같은 행정구역
+const updateRegion = watchRegion((name) => (regionEl.textContent = name));
 const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
 setupSearch(document.getElementById('q'), document.getElementById('results'), document.getElementById('status'));
 const inMenu = setupMenu();
@@ -94,6 +142,7 @@ let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
 
 renderer.setAnimationLoop((now) => {
   const dt = Math.min((now - last) / 1000, 0.1);
+  updateDaylight(now);
   const ratio = governor(dt);
   if (ratio) { renderer.setPixelRatio(ratio); sun.castShadow = ratio > maxRatio * 0.6; shadowDirty = true; } // 해상도를 많이 낮춰야 하는 기기에서는 그림자도 끔
   acc += dt;
@@ -125,7 +174,7 @@ renderer.setAnimationLoop((now) => {
   while (acc >= STEP) { player.step(STEP, move, input.jump, opts); input.jump = false; acc -= STEP; }
 
   tiles.update(player.pos, player.vel);
-  tiles.animate(now / 1000);
+  tiles.animate(now / 1000, 1 - light.night);
 
   hero.position.copy(player.pos);
   const hv = Math.hypot(player.vel.x, player.vel.z);
@@ -145,9 +194,11 @@ renderer.setAnimationLoop((now) => {
   blob.material.opacity = 0.4 * Math.max(0, 1 - (player.pos.y - R - gy) / 30);
   // 그림자 지도: 주인공이 SNAP만큼 움직였거나 타일이 바뀌면 그 자리로 옮겨 한 번 다시 그림
   target.copy(player.pos).divideScalar(SNAP).round().multiplyScalar(SNAP);
-  if (shadowDirty || !target.equals(sun.target.position)) {
+  // 해가 1°쯤 움직일 때마다(실제 4초쯤)도 다시 그림
+  if (shadowDirty || !target.equals(sun.target.position) || lightDir.dot(lastShadowDir) < 0.99985) {
+    lastShadowDir.copy(lightDir);
     sun.target.position.copy(target);
-    sun.position.copy(target).addScaledVector(SUN, 2);
+    sun.position.copy(target).addScaledVector(lightDir, 600);
     renderer.shadowMap.needsUpdate = true;
     shadowDirty = false;
   }
@@ -168,6 +219,7 @@ renderer.setAnimationLoop((now) => {
   // 빠를수록 시야각을 넓혀 속도감을 줌
   camera.fov += (FOV + Math.min(25, player.vel.length() * 0.45) - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
+  sky.position.copy(camera.position); stars.position.copy(camera.position); // 하늘은 늘 멀리 있게
   if (frame % 12 === 0) {
     drawMinimap(player, hero.rotation.y);
     const [lo, la] = tileToLonLat(ox + player.pos.x / S, oy + player.pos.z / S);
