@@ -1,4 +1,5 @@
 import { S } from './tile.js';
+import { decodePng } from './png.js';
 
 // 지형: AWS Terrain Tiles(Terrarium) z13. z13 픽셀 하나 = z15 타일의 1/64 (약 15m)
 export const N = 64; // 타일 한 변의 격자 칸 수 (land 격자와 같음)
@@ -13,11 +14,9 @@ function dem(X, Y) {
     try {
       const res = await fetch(`${URL}/${key}.png`);
       if (!res.ok) throw new Error(res.status);
-      const bmp = await createImageBitmap(await res.blob(), { colorSpaceConversion: 'none' }); // 색 보정이 고도 값을 바꾸지 않게
-      const ctx = Object.assign(document.createElement('canvas'), { width: 256, height: 256 }).getContext('2d');
-      ctx.drawImage(bmp, 0, 0);
-      const d = ctx.getImageData(0, 0, 256, 256).data;
-      for (let i = 0; i < 65536; i++) h[i] = Math.max(0, d[i * 4] * 256 + d[i * 4 + 1] + d[i * 4 + 2] / 256 - 32768); // 바다 밑은 0m
+      const { width, ch, data } = await decodePng(await res.arrayBuffer()); // 캔버스를 거치지 않음(png.js 참고)
+      if (width !== 256) throw new Error(`크기 ${width}`);
+      for (let i = 0; i < 65536; i++) h[i] = Math.max(0, data[i * ch] * 256 + data[i * ch + 1] + data[i * ch + 2] / 256 - 32768); // 바다 밑은 0m
     } catch (e) { console.warn('지형 타일 실패', key, e); }
     return h;
   })());
