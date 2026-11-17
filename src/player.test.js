@@ -38,4 +38,28 @@ for (let i = 0; i < 600; i++) {
 }
 assert.ok(p.pos.x > 40, `went past the anchor: ${p.pos.x}`);
 assert.ok(maxY > 8, `lifted off: ${maxY}`);
+
+// 벽타기: 벽 반대로 당기면 붙은 채 내려가고, 가만히 있으면 매달림
+p = new Player([box]); p.pos.set(-R, 15, -5); p.wall = new THREE.Vector3(-1, 0, 0); p.climbing = true;
+for (let i = 0; i < 60; i++) p.step(1 / 120, new THREE.Vector3(-1, 0, 0), false);
+assert.ok(p.climbing && Math.abs(p.pos.y - 11.5) < 0.1, `climbs down ${p.pos.y}`);
+for (let i = 0; i < 60; i++) p.step(1 / 120, still, false);
+assert.ok(p.climbing && Math.abs(p.pos.y - 11.5) < 0.1, `hangs ${p.pos.y}`);
+
+// 달리기는 걷기보다 빠름
+p = new Player([]); p.pos.set(0, R, 0); p.onGround = true;
+p.step(1 / 120, new THREE.Vector3(1, 0, 0), false, { run: true });
+assert.ok(p.vel.x > 10);
+
+// 잡아당기기: 걸린 곳으로 빠르게 날아가 도착하면 속도를 유지한 채 놓음
+p = new Player([]); p.pos.set(0, 20, 0);
+p.zip(new THREE.Vector3(60, 40, 0));
+let steps = 0;
+while (p.anchor && steps++ < 600) p.step(1 / 120, still, false);
+assert.ok(!p.anchor && !p.zipping && steps < 360 && p.vel.length() > 30 && p.pos.x > 50, `zip ${steps} ${p.vel.length()}`);
+
+// 활공: 떨어지는 속도가 제한됨
+p = new Player([]); p.pos.set(0, 500, 0);
+for (let i = 0; i < 240; i++) p.step(1 / 120, still, false, { glide: true });
+assert.ok(p.vel.y >= -4.001 && p.vel.y < -3, `glide ${p.vel.y}`);
 console.log('player ok');

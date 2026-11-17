@@ -24,9 +24,15 @@
 - `military` 태그가 붙은 시설과, 군 부지(`landuse=military`, `military=*`) 다각형 안의 건물·도로는 데이터에서 제외
 - OSM 출처 표기 필수 (© OpenStreetMap contributors)
 
+## R2 이전 (선택)
+- `scripts/upload-r2.sh`: 타일을 gzip으로 압축해 R2에 올림(aws CLI, S3 호환 API). GitHub Actions의 `upload-r2` 워크플로를 수동 실행
+- 저장소 Secrets `R2_ACCOUNT_ID`·`R2_ACCESS_KEY_ID`·`R2_SECRET_ACCESS_KEY`, Variables `R2_BUCKET` 필요. 버킷은 공개 접근과 CORS(GET 허용)를 켜야 함
+- Variables에 `TILE_URL`(버킷 공개 주소 + `/tiles`)을 넣고 다시 배포하면 로더가 R2에서 읽음 (`VITE_TILE_URL`)
+- 실제 R2 계정으로는 아직 실행해 보지 않음
+
 ## 명령
 - `npm run build:tiles` — 한국 추출본 다운로드 후 전국 건물 타일 생성 (osmium-tool 설치 필요, 다른 파일은 `npm run build:tiles -- 경로.osm.pbf`)
-- 시작 위치 변경: 주소 뒤에 `?ll=위도,경도`
+- 시작 위치 변경: 주소 뒤에 `?ll=위도,경도`, 또는 화면의 도시 검색창(`src/cities.js`)
 - `npm run dev` — 개발 서버
 - `npm test` — 높이 규칙·물리·도로·조준·지형 보간·충돌 자체 검사
 
@@ -45,3 +51,5 @@
 - [x] 9단계: 종류 없는 건물 기본 높이 20m, 벽타기(벽 쪽으로 스틱을 밀면 오르고 점프로 벽에서 뛰어내림)
 - [x] 10단계: 군 부지 다각형 안의 건물·도로 제외
 - 다음 후보: 물(강·바다) 표시, 고가도로·다리 높이, Cloudflare Pages + R2 이전
+- [x] 11단계: 달리기, 벽타기 오르내리기·매달리기, 잡아당기기, 활공, 지형에 거미줄, 속도에 따른 시야각, 진행 방향 타일 미리 불러오기, 도시 검색 순간이동, 미니맵, R2 업로드 스크립트·워크플로(미실행), 거미줄 사거리 80m
+- 조작: 걷기 5m/s·달리기 11m/s(Shift / 스틱 멀리), 거미줄(왼쪽 버튼 / [거미줄]), 당기기(E·오른쪽 버튼 / [당기기]), 점프(Space / [점프])

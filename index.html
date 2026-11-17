@@ -9,13 +9,20 @@
     canvas { display: block; touch-action: none; }
     #hud { position: fixed; left: 6px; top: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
     .tbtn { display: none; position: fixed; bottom: 30px; width: 72px; height: 72px; border-radius: 50%; border: 0; background: #fff8; font: 14px sans-serif; touch-action: none; user-select: none; }
-    #btn-web.ready { background: #3fe0c5; }
+    #btn-web.ready, #btn-zip.ready { background: #3fe0c5; }
+    #minimap { position: fixed; right: 8px; top: 8px; width: 150px; height: 150px; border-radius: 8px; border: 2px solid #fff8; pointer-events: none; }
+    #city { position: fixed; left: 6px; top: 30px; width: 150px; font: 16px sans-serif; padding: 4px 8px; border-radius: 6px; border: 0; background: #fffc; }
+    @media (pointer: coarse) { #city { top: 8px; } }
     @media (pointer: coarse) { .tbtn { display: block; } #hud { display: none; } }
     #attr { position: fixed; right: 6px; bottom: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
   </style>
 </head>
 <body>
-  <div id="hud">클릭: 마우스 고정 · WASD 이동 · Space 점프 · 왼쪽 버튼 누르는 동안 거미줄 · 벽으로 밀면 벽타기</div>
+  <div id="hud">클릭: 마우스 고정 · WASD 이동 · Shift 달리기 · Space 점프 · 왼쪽 버튼: 거미줄(걸 곳 없으면 활공) · 오른쪽 버튼/E: 당기기 · 벽으로 밀면 벽타기</div>
+  <input id="city" list="cities" placeholder="도시 이동" aria-label="도시로 순간이동" autocomplete="off">
+  <datalist id="cities"></datalist>
+  <canvas id="minimap" aria-label="미니맵"></canvas>
+  <button id="btn-zip" class="tbtn" style="right: 20px; bottom: 115px">당기기</button>
   <button id="btn-jump" class="tbtn" style="right: 110px">점프</button>
   <button id="btn-web" class="tbtn" style="right: 20px">거미줄</button>
   <div id="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors</div>

@@ -6,8 +6,10 @@ import { createInput } from './input.js';
 import { createHero } from './hero.js';
 import { findAnchor } from './web.js';
 import { rayHit } from './collide.js';
+import { createMinimap } from './minimap.js';
+import { setupCities } from './cities.js';
 
-const WEB_RANGE = 150, STEP = 1 / 120, CAM_DIST = 9;
+const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
@@ -21,7 +23,7 @@ const sun = new THREE.DirectionalLight(0xffffff, 1.5);
 sun.position.set(300, 500, 200);
 scene.add(sun);
 
-const camera = new THREE.PerspectiveCamera(65, 1, 0.5, 3000);
+const camera = new THREE.PerspectiveCamera(FOV, 1, 0.5, 3000);
 function resize() {
   renderer.setSize(innerWidth, innerHeight);
   camera.aspect = innerWidth / innerHeight;
@@ -57,8 +59,10 @@ scene.add(marker);
 
 const move = new THREE.Vector3(), target = new THREE.Vector3();
 const camRay = new THREE.Ray();
-const webBtn = document.getElementById('btn-web');
-let acc = 0, last = performance.now(), frame = 0, near = [];
+const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
+const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
+setupCities(document.getElementById('city'), document.getElementById('cities'));
+let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
 
 renderer.setAnimationLoop((now) => {
   const dt = Math.min((now - last) / 1000, 0.1);
@@ -69,20 +73,25 @@ renderer.setAnimationLoop((now) => {
   move.set(-sy * input.my + cy * input.mx, 0, -cy * input.my - sy * input.mx);
   if (move.lengthSq() > 1) move.normalize();
 
-  // 거미줄: 스틱을 민 방향(없으면 카메라 정면) 위쪽 건물을 자동 조준. 걸 수 있으면 표시하고, 버튼을 누르고 있으면 걸림
+  // 거미줄: 스틱을 민 방향(없으면 카메라 정면) 위쪽 건물(없으면 솟은 지형)을 자동 조준. 걸 수 있으면 표시
   if (frame++ % 15 === 0) near = player.colliders.filter((c) => c.box.distanceToPoint(player.pos) < WEB_RANGE);
   const heading = move.lengthSq() > 0.09 ? Math.atan2(move.x, move.z) : Math.atan2(-sy, -cy);
-  const cand = player.anchor ? null : findAnchor(player.pos, heading, near, WEB_RANGE);
+  const cand = player.anchor ? null : findAnchor(player.pos, heading, near, WEB_RANGE, tiles.groundAt);
   marker.visible = !!cand;
   webBtn.classList.toggle('ready', !!cand); // 조준점이 화면 밖이어도 버튼 색으로 알 수 있게
+  zipBtn.classList.toggle('ready', !!cand || (!!player.anchor && !player.zipping));
   if (cand) { marker.position.copy(cand); marker.scale.setScalar(camera.position.distanceTo(cand) * 0.012); }
-  if (input.web && cand) player.attach(cand);
-  if (!input.web) player.release();
+  // 거미줄 버튼: 누르고 있으면 걸려 스윙(걸 곳이 없으면 활공). 당기기 버튼: 누르는 순간 걸린 곳으로 날아감(스윙 중에도 가능)
+  if (input.zip && !zipHeld) player.zip(cand);
+  else if (input.web && cand) player.attach(cand);
+  if (!input.web && !input.zip) player.release();
+  zipHeld = input.zip;
 
   if (!ready) acc = 0;
-  while (acc >= STEP) { player.step(STEP, move, input.jump); input.jump = false; acc -= STEP; }
+  const opts = { run: input.run, glide: input.web };
+  while (acc >= STEP) { player.step(STEP, move, input.jump, opts); input.jump = false; acc -= STEP; }
 
-  tiles.update(player.pos);
+  tiles.update(player.pos, player.vel);
 
   hero.position.copy(player.pos);
   const hv = Math.hypot(player.vel.x, player.vel.z);
@@ -107,5 +116,9 @@ renderer.setAnimationLoop((now) => {
   camera.position.copy(target).addScaledVector(camRay.direction, Math.max(dist, 1));
   camera.position.y = Math.max(camera.position.y, tiles.groundAt(camera.position.x, camera.position.z) + 0.5);
   camera.lookAt(target);
+  // 빠를수록 시야각을 넓혀 속도감을 줌
+  camera.fov += (FOV + Math.min(25, player.vel.length() * 0.45) - camera.fov) * Math.min(1, dt * 3);
+  camera.updateProjectionMatrix();
+  if (frame % 12 === 0) drawMinimap(player, hero.rotation.y);
   renderer.render(scene, camera);
 });
