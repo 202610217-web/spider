@@ -7,7 +7,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "build:tiles": "node --max-old-space-size=8192 scripts/build-tiles.js",
-    "test": "node src/hero.test.js && node src/perf.test.js && node src/height.test.js && node src/player.test.js && node src/roads.test.js && node src/web.test.js && node src/terrain.test.js && node src/collide.test.js && node src/style.test.js && node src/buildings.test.js && node src/street.test.js"
+    "test": "node src/hero.test.js && node src/perf.test.js && node src/height.test.js && node src/player.test.js && node src/roads.test.js && node src/web.test.js && node src/terrain.test.js && node src/collide.test.js && node src/style.test.js && node src/buildings.test.js && node src/street.test.js && node src/cities.test.js"
   },
   "dependencies": {
     "three": "^0.187.0"
