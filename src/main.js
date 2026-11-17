@@ -9,6 +9,7 @@ import { findAnchor } from './web.js';
 import { rayHit } from './collide.js';
 import { createMinimap } from './minimap.js';
 import { setupSearch } from './search.js';
+import { setupMenu } from './menu.js';
 
 const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
@@ -79,6 +80,7 @@ const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
 const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
 setupSearch(document.getElementById('q'), document.getElementById('results'), document.getElementById('status'));
+const inMenu = setupMenu();
 let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
 
 renderer.setAnimationLoop((now) => {
@@ -88,6 +90,7 @@ renderer.setAnimationLoop((now) => {
   acc += dt;
   last = now;
 
+  if (inMenu()) input.yaw += dt * 0.12; // 메인 화면 뒤에서 도시를 천천히 둘러봄
   const sy = Math.sin(input.yaw), cy = Math.cos(input.yaw);
   move.set(-sy * input.my + cy * input.mx, 0, -cy * input.my - sy * input.mx);
   if (move.lengthSq() > 1) move.normalize();

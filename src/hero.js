@@ -1,11 +1,39 @@
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
-// 오리지널 주인공 "누리": 남색 슈트, 민트색 띠·장갑·부츠, 둥근 흰 헬멧에 가로 바이저 하나
+// 오리지널 주인공 "누리". 3D 모델(public/models/nuri.glb, Higgsfield로 만든 오리지널 디자인)을 쓰고, 아래 도형 몸은 모델을 받기 전·못 받았을 때의 기본 모양
+// 기본 모양: 남색 슈트, 민트색 띠·장갑·부츠, 둥근 흰 헬멧에 가로 바이저 하나
 // 관절(어깨·팔꿈치·엉덩이·무릎)이 있는 몸을 상태별 목표 자세로 부드럽게 따라가게 함 (애니메이션 파일 없음)
 const NAVY = 0x1f2a44, MINT = 0x3fe0c5, WHITE = 0xf2f2f2;
 const HIP = 0.45, LEG = 0.475, ARM = 0.3; // 발 -0.5(충돌 구 바닥) ~ 머리 1.3 → 키 1.8m
 const REST = { sLx: 0, sLz: 0.12, sRx: 0, sRz: -0.12, eL: -0.15, eR: -0.15, hLx: 0, hLz: 0, hRx: 0, hRz: 0, kL: 0, kR: 0, pitch: 0, roll: 0, drop: 0 };
 const clamp = THREE.MathUtils.clamp;
+
+// 뼈대 있는 모델(public/models/nuri.glb)을 아래 자세 값 그대로 움직이게 연결. 뼈 이름은 Left/Right + Arm·ForeArm·Hand·UpLeg·Leg·Foot
+// 자세 값은 "팔다리가 똑바로 아래로 늘어진 상태에서 주인공 기준 x·z축으로 얼마나 돌리나"이므로,
+// 뼈마다 쉬는 자세(A자)의 방향을 아래로 맞추는 회전(align)을 먼저 구해 두고 그 위에 자세 회전을 얹음
+// 돌려주는 값: { hands: { L, R }, set(관절 이름 예 'sL', x, z) } — 뼈가 없으면 null. model은 아직 어디에도 붙이지 않은(회전 없는) 상태여야 함
+const LIMBS = { s: ['Arm', 'ForeArm'], e: ['ForeArm', 'Hand'], h: ['UpLeg', 'Leg'], k: ['Leg', 'Foot'] }, UPPER = { e: 's', k: 'h' };
+export function rigModel(model) {
+  model.updateMatrixWorld(true);
+  const rig = {}, a = new THREE.Vector3(), b = new THREE.Vector3(), down = new THREE.Vector3(0, -1, 0);
+  for (const [s, side] of [['L', 'Left'], ['R', 'Right']]) for (const key in LIMBS) {
+    const o = model.getObjectByName(side + LIMBS[key][0]), child = model.getObjectByName(side + LIMBS[key][1]);
+    if (!o || !child) return null;
+    const qw = o.getWorldQuaternion(new THREE.Quaternion());
+    rig[key + s] = { o, rest: o.quaternion.clone(), qw, qwInv: qw.clone().invert(), align: new THREE.Quaternion().setFromUnitVectors(child.getWorldPosition(a).sub(o.getWorldPosition(b)).normalize(), down) };
+  }
+  const e = new THREE.Euler(), r = new THREE.Quaternion(), q = new THREE.Quaternion();
+  return {
+    hands: { L: model.getObjectByName('LeftHand'), R: model.getObjectByName('RightHand') },
+    set(name, x, z = 0) {
+      const j = rig[name], up = UPPER[name[0]] && rig[UPPER[name[0]] + name[1]];
+      r.setFromEuler(e.set(x, 0, z)).multiply(j.align);             // 모델 기준 회전 = 자세 × 아래로 맞춤
+      if (up) r.premultiply(q.copy(up.align).invert());              // 아래 마디: 위 마디가 이미 맞춘 만큼은 뺌
+      j.o.quaternion.copy(j.rest).multiply(j.qwInv).multiply(r).multiply(j.qw); // 뼈 자신의 축으로 옮겨 적용
+    },
+  };
+}
 
 export function heroState(p, glide) {
   const hv = Math.hypot(p.vel.x, p.vel.z);
@@ -58,13 +86,29 @@ export function createHero() {
 
   const cur = { ...REST }, d = new THREE.Vector3();
   let prev = 'idle', side = 'L', ph = 0, time = 0, flip = 0, twist = 0, trick = 0, crouch = 0, lastVy = 0, lastYaw = 0;
+  let rig = null; // 3D 모델이 붙으면 그 뼈대
   root.hand = hands.L; // 거미줄을 쥔 손
+  // 3D 모델로 바꿈: 기본 모양(도형)을 숨기고 같은 자리에 붙임. 모델은 발이 원점·키 1.8m·앞이 +z
+  root.setModel = (model) => {
+    const r = rigModel(model);
+    if (!r) return console.warn('누리 모델에 필요한 뼈가 없음 — 기본 모양을 씀');
+    model.traverse((o) => {
+      if (!o.isMesh) return;
+      o.material = new THREE.MeshLambertMaterial({ map: o.material.map, emissive: 0xffffff, emissiveMap: o.material.map, emissiveIntensity: 0.3 }); // 다른 물체와 같은 조명 + 어두운 곳에서도 색이 보이게
+      o.frustumCulled = false; // 뼈로 움직이면 원래 경계 상자가 맞지 않음
+    });
+    for (const c of body.children) c.visible = false;
+    model.position.y = -0.5 - HIP; // body(엉덩이 높이) 기준: 발이 충돌 구 바닥에
+    body.add(model);
+    rig = r;
+    root.hand = rig.hands[side];
+  };
 
   // p: Player, glide: 활공 버튼. root의 위치·방향(rotation.y)을 정한 뒤 매 프레임 호출
   root.animate = (p, dt, glide) => {
     const st = heroState(p, glide), v = p.vel, hv = Math.hypot(v.x, v.z), T = { ...REST };
     if (st !== prev) {
-      if (st === 'swing') root.hand = hands[side = side === 'L' ? 'R' : 'L']; // 스윙마다 손을 바꿈
+      if (st === 'swing') root.hand = (rig?.hands ?? hands)[side = side === 'L' ? 'R' : 'L']; // 스윙마다 손을 바꿈
       // 빠르게 놓으면 묘기: 앞 공중제비 → 비틀기 → 뒤 공중제비 순서로 돌아가며
       if (prev === 'swing' && st === 'air' && v.length() > 15) { if (trick % 3 === 1) twist = Math.PI * 2; else flip = (1 - (trick % 3)) * Math.PI * 2; trick++; }
       if ((st === 'run' || st === 'idle') && lastVy < -8) { crouch = 1; if (lastVy < -12 && hv > 8) flip = Math.PI * 2; } // 착지: 웅크림, 빠르면 앞구르기
@@ -132,6 +176,10 @@ export function createHero() {
       J['e' + s].rotation.x = cur['e' + s];
       J['h' + s].rotation.set(cur['h' + s + 'x'] - th, 0, cur['h' + s + 'z']);
       J['k' + s].rotation.x = cur['k' + s] + th * 2;
+      if (rig) {
+        rig.set('s' + s, cur['s' + s + 'x'], cur['s' + s + 'z']); rig.set('e' + s, cur['e' + s]);
+        rig.set('h' + s, cur['h' + s + 'x'] - th, cur['h' + s + 'z']); rig.set('k' + s, cur['k' + s] + th * 2);
+      }
     }
     body.position.y = HIP - cur.drop - LEG * 2 * (1 - Math.cos(th));
     body.rotation.set(cur.pitch + flip, twist, cur.roll);
@@ -140,5 +188,7 @@ export function createHero() {
     root.updateMatrixWorld(true); // 손 위치를 바로 읽을 수 있게
   };
   root.animate({ vel: new THREE.Vector3(), onGround: true }, 0, false);
+  // 브라우저에서는 3D 모델을 받아 바꿈 (못 받으면 기본 모양 그대로)
+  if (typeof document !== 'undefined') new GLTFLoader().load(`${import.meta.env.BASE_URL}models/nuri.glb`, (g) => root.setModel(g.scene), undefined, (e) => console.warn('누리 모델을 못 불러옴 — 기본 모양을 씀', e));
   return root;
 }
