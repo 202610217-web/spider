@@ -95,7 +95,9 @@ renderer.setAnimationLoop((now) => {
 
   hero.position.copy(player.pos);
   const hv = Math.hypot(player.vel.x, player.vel.z);
-  if (hv > 0.5) hero.rotation.y = Math.atan2(player.vel.x, player.vel.z);
+  if (player.climbing && player.wall) hero.rotation.y = Math.atan2(-player.wall.x, -player.wall.z); // 벽타기 중에는 벽을 봄
+  else if (hv > 0.5) hero.rotation.y = Math.atan2(player.vel.x, player.vel.z);
+  hero.animate(player, dt, input.web);
 
   // 공중에서는 카메라가 진행 방향 뒤로 천천히 따라옴 (직접 돌린 직후나 카메라 쪽으로 날아올 때는 제외)
   if (!player.onGround && hv > 4 && now - input.lookAt > 1200) {
@@ -104,7 +106,7 @@ renderer.setAnimationLoop((now) => {
   }
 
   rope.visible = !!player.anchor;
-  if (player.anchor) rope.geometry.setFromPoints([player.pos, player.anchor]);
+  if (player.anchor) rope.geometry.setFromPoints([hero.hand.getWorldPosition(target), player.anchor]); // 줄은 쥔 손에서 나감
 
   // 카메라: 플레이어 뒤 CAM_DIST, 사이에 건물이 있으면 그 앞까지 당기고 땅 밑으로는 안 내려감
   target.copy(player.pos).y += 1.5;
