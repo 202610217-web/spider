@@ -13,7 +13,7 @@
 - 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json`, 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
 - 빠진 건물 보충: Overture Maps 건물 중 OSM 출처가 아닌 것(위성사진 자동 추출 등)을 `scripts/fetch-overture.sh`로 받아 `data/overture.ndjson`에 두면 `build-tiles.js`가 더함. 한국 경계(Geofabrik .poly) 안, 기존 건물과 안 겹치는 것만
 - 땅 덮개: OSM 숲·풀밭·공원·논밭 다각형을 타일마다 64×64 칸으로 칠해 `land`에 넣음(`src/land.js`), 게임은 땅 꼭짓점 색으로 씀
-- 지형: AWS Terrain Tiles (Terrarium) z13 PNG를 브라우저가 직접 받아 타일당 65×65 고도 격자(약 15m 간격)로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
+- 지형: AWS Terrain Tiles (Terrarium) z13 PNG를 브라우저가 직접 받아 캔버스 없이 직접 풀고(`src/png.js` — Safari 등의 지문 방지 잡음이 수백 m짜리 뾰족한 산을 만들기 때문) 타일당 65×65 고도 격자(약 15m 간격)로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
 
 ## 원칙
 - 타일 JSON: `buildings [{h, s, ring}]`, `roads [{w, line, b?}]`(b: 다리), `water [[바깥 링, 구멍…]]`, `cross`·`lights [[동, 북, 도로 방향(rad), 도로 폭]]`(횡단보도·신호등), `land [종류, 칸 수, …]`(0 없음·1 논밭·2 풀밭·3 숲, 64×64 칸 줄임)
@@ -45,7 +45,7 @@
 - 시작 위치 변경: 주소 뒤에 `?ll=위도,경도`, 또는 화면의 장소 검색창(`src/search.js`, `/` 키) — 치는 동안 결과 목록, ↑↓·Enter·클릭으로 이동. 카카오 키가 있으면 카카오맵 검색(`src/kakao.js`), 없거나 실패하면 도시 목록(`src/cities.js`) + Enter 때 OSM Nominatim(한국 한정, 자동완성 금지 규칙 때문에 Enter 때만)
 - 카카오 키: 저장소 Variables `KAKAO_JS_KEY`에 JavaScript 키를 넣고 다시 배포(`VITE_KAKAO_KEY`). 카카오 개발자 사이트에서 사이트 도메인(`https://202610217-web.github.io`)을 등록해야 함. 실제 키로는 아직 실행해 보지 않음
 - `npm run dev` — 개발 서버
-- `npm test` — 주인공 자세·해상도 조절·높이 규칙·물리·도로·조준·지형 보간·충돌·건물 외관·거리 꾸밈 자체 검사
+- `npm test` — PNG 풀기·주인공 자세·해상도 조절·높이 규칙·물리·도로·조준·지형 보간·충돌·건물 외관·거리 꾸밈 자체 검사
 
 ## 진행 현황
 - [x] 1단계: Vite+Three.js 초기화, 광화문 1km² 건물 fetch, 돌출 표시, 마우스/터치 카메라
@@ -79,3 +79,4 @@
 - [x] OSM에 없는 건물을 Overture Maps에서 보충. 보충한 건물의 높이는 바닥 넓이로 추정(120㎡ 미만 6m, 120~500㎡ 12m, 500㎡ 이상 20m). 브랜치 빌드는 Pages 아티팩트를 올리지 않음
 - 전국 빌드 결과(2026-11): 건물 351만 개(OSM 137만 + Overture 215만), 타일 8.5만 개, 763MB — GitHub Pages 한도 1GB에 가까워 더 늘리려면 R2 이전 필요
 - [x] 누리 3D 모델 교체(Higgsfield: 오리지널 디자인 이미지 → 3D 메시 → 뼈대, 기존 자세 시스템을 뼈대에 연결), 메인 화면(리퀴드 글래스, 피그마 'Main screen — liquid glass' 프레임 기준, `src/menu.js` — 주소에 `?ll=`이 없을 때만 보임), 숲·풀밭·공원·논밭 땅 색, 지형 해상도 4배(z13), 태그 없는 위성 건물은 주택·창고·상가 모양으로
+- [x] 뾰족한 가짜 산 제거: 고도 PNG를 캔버스 대신 직접 풀어 브라우저 지문 방지 잡음을 피함
