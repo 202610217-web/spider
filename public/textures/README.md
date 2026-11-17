@@ -12,6 +12,7 @@
 
 `win0.svg`(빌라 창)·`win1.svg`(아파트·상가 띠창)·`win2.svg`(유리 커튼월)은 피그마 파일
 [Spider — 서울 건물 창호 텍스처](https://www.figma.com/design/Jij69VWpfRiEYwQmgJgoJp)에서 그려 SVG로 내보낸 것(그라디언트 id만 `g`로 줄임).
+`win3.svg`(두 칸 창)·`win4.svg`(짙은 유리 + 세로 기둥)·`win5.svg`(공장 높은 띠창)은 같은 양식으로 직접 쓴 SVG.
 벽 한 칸(3m × 3m = 256px)에 사진 바탕 → 창호 순서로 겹쳐 그림 (`src/buildings.js`).
 
 ## 추가

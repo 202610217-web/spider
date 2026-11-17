@@ -25,12 +25,37 @@ export function buildingStyle(tags = {}, h, area) {
   return 2;
 }
 
-// 유형별 벽 무늬(buildings.js의 텍스처 번호)와 벽·옥상 색 후보. 건물마다 하나씩 골라 거리가 단조롭지 않게 함
+// 유형마다 디자인 3가지: 벽 무늬(buildings.js의 LAYERS 번호)와 벽·옥상 색 후보. 건물마다 자리로 디자인 하나와 색 하나를 골라
+// 늘 같은 모습이 되게 함(buildings.js)
 export const LOOKS = [
-  { tex: 0, wall: [0xb5694d, 0xc98a6b, 0x9c5b45, 0xd9c7b0, 0xcfcfc8], roof: [0x3f8f5f, 0x4a9a6a, 0x3f8f5f, 0x8a8a84] },
-  { tex: 1, wall: [0xf2f0ea, 0xe6e2d8, 0xdfe6ea, 0xf0e6d6], roof: [0xb9b9b4, 0xa9aaa6] },
-  { tex: 1, wall: [0xcfc8bc, 0xbfb7aa, 0xd8d2c4, 0xa9a39a, 0xc9b9a3], roof: [0x9a9a96, 0x3f8f5f, 0x8a8a84] },
-  { tex: 2, wall: [0x9fc4e0, 0x8fb3cc, 0xa9d0d8, 0x7f9fb8], roof: [0x8a8d92] },
-  { tex: 3, wall: [0xd9dde0, 0xcfd6dc, 0xe6e0d2], roof: [0x3f6fb5, 0x4a7fc0, 0x9aa0a6] },
-  { tex: 3, wall: [0x8a4b3a, 0x8a4b3a, 0xe8e0cf], roof: [0x3a3d42] },
+  [ // 0 빌라·주택
+    { tex: 0, wall: [0xb5694d, 0xc98a6b, 0x9c5b45], roof: [0x3f8f5f, 0x4a9a6a, 0x8a8a84] },  // 붉은 벽돌 + 작은 창 + 녹색 방수 옥상
+    { tex: 4, wall: [0xf0e6d6, 0xe8dcc4, 0xf4f0e8], roof: [0x3f8f5f, 0x9a9a96] },             // 크림색 미장 + 작은 창
+    { tex: 5, wall: [0x8f8478, 0xa3998c, 0x7c6e62], roof: [0x8a8a84, 0x6f6f6a] },             // 회갈색 벽돌 + 넓은 창(요즘 빌라)
+  ],
+  [ // 1 아파트
+    { tex: 1, wall: [0xf2f0ea, 0xe6e2d8, 0xdfe6ea], roof: [0xb9b9b4, 0xa9aaa6] },             // 흰 외벽 + 긴 띠창
+    { tex: 6, wall: [0xf0dcd0, 0xdde6ee, 0xe9e2c8], roof: [0xb9b9b4] },                       // 연한 색 외벽 + 두 칸 창(오래된 단지)
+    { tex: 2, wall: [0xc8d6e0, 0xb8c8d4, 0xd4dce2], roof: [0x8a8d92] },                       // 밝은 유리(주상복합)
+  ],
+  [ // 2 상가·학교·공공
+    { tex: 1, wall: [0xcfc8bc, 0xbfb7aa, 0xd8d2c4], roof: [0x9a9a96, 0x3f8f5f] },             // 타일색 외벽 + 띠창
+    { tex: 5, wall: [0xa85f48, 0xb87458, 0x96553f], roof: [0x8a8a84, 0x3f8f5f] },             // 붉은 벽돌 + 띠창(학교·관공서)
+    { tex: 6, wall: [0xbdbab4, 0xa9a39a, 0xc9b9a3], roof: [0x9a9a96] },                       // 콘크리트 + 두 칸 창
+  ],
+  [ // 3 오피스·호텔
+    { tex: 2, wall: [0x9fc4e0, 0x8fb3cc, 0xa9d0d8], roof: [0x8a8d92] },                       // 푸른 유리 커튼월
+    { tex: 7, wall: [0xd0d4d8, 0xc4c8cc, 0xe0e0dc], roof: [0x6f7378] },                       // 짙은 유리 + 세로 기둥
+    { tex: 6, wall: [0xd9d6cf, 0xc8c4bc, 0xb4b0a8], roof: [0x8a8d92] },                       // 석재색 외벽 + 격자 창
+  ],
+  [ // 4 공장·창고
+    { tex: 3, wall: [0xd9dde0, 0xcfd6dc, 0xe6e0d2], roof: [0x3f6fb5, 0x4a7fc0, 0x9aa0a6] },   // 골강판 + 파란 지붕
+    { tex: 8, wall: [0xe8e4dc, 0xc9d3cf, 0xdcd4c4], roof: [0xa0463a, 0x3f8f5f] },             // 골강판 + 높은 띠창 + 붉은·녹색 지붕
+    { tex: 9, wall: [0xbdbab4, 0xa9a39a], roof: [0x9aa0a6, 0x3f6fb5] },                       // 콘크리트 블록 + 높은 띠창
+  ],
+  [ // 5 전통 건물
+    { tex: 4, wall: [0xf4f0e6, 0xece4d4], roof: [0x3a3d42] },                                 // 흰 회벽 + 작은 창 + 검은 기와
+    { tex: 3, wall: [0x8a4b3a, 0x7a3e30], roof: [0x3a3d42, 0x4a4d55] },                       // 붉은 나무 벽 + 기와
+    { tex: 0, wall: [0xc9a27a, 0xb8916c], roof: [0x3a3d42] },                                 // 황토 벽돌 + 기와
+  ],
 ];
