@@ -11,6 +11,7 @@
     .tbtn { display: none; position: fixed; bottom: 30px; width: 72px; height: 72px; border-radius: 50%; border: 0; background: #fff8; font: 14px sans-serif; touch-action: none; user-select: none; }
     #btn-web.ready, #btn-zip.ready { background: #3fe0c5; }
     #minimap { position: fixed; right: 8px; top: 8px; width: 150px; height: 150px; border-radius: 8px; border: 2px solid #fff8; pointer-events: none; }
+    #pos { position: fixed; right: 8px; top: 166px; width: 154px; box-sizing: border-box; font: 11px sans-serif; text-align: center; white-space: pre; background: #fffc; padding: 3px 4px; border-radius: 6px; pointer-events: none; }
     #city { position: fixed; left: 6px; top: 30px; width: 190px; font: 16px sans-serif; padding: 4px 8px; border-radius: 6px; border: 0; background: #fffc; }
     @media (pointer: coarse) { #city { top: 8px; } }
     @media (pointer: coarse) { .tbtn { display: block; } #hud { display: none; } }
@@ -18,10 +19,11 @@
   </style>
 </head>
 <body>
-  <div id="hud">클릭: 마우스 고정 · WASD 이동 · Shift 달리기 · Space 점프(공중에서 길게: 활공·조종) · 왼쪽 버튼: 거미줄(어디서든) · 오른쪽 버튼/E: 당기기 · 벽으로 밀면 벽타기</div>
+  <div id="hud">클릭: 마우스 고정 · WASD 이동 · Shift 달리기 · Space 점프(공중에서 길게: 앞으로 활공) · 왼쪽 버튼: 거미줄(어디서든) · 오른쪽 버튼/E: 당기기 · 벽으로 밀면 벽타기</div>
   <input id="city" list="cities" placeholder="도시·주소·건물 이름" aria-label="도시, 주소, 건물 이름으로 순간이동" autocomplete="off">
   <datalist id="cities"></datalist>
   <canvas id="minimap" aria-label="미니맵"></canvas>
+  <div id="pos" aria-label="현재 위치"></div>
   <button id="btn-zip" class="tbtn" style="right: 20px; bottom: 115px">당기기</button>
   <button id="btn-jump" class="tbtn" style="right: 110px">점프</button>
   <button id="btn-web" class="tbtn" style="right: 20px">거미줄</button>

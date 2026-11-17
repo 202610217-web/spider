@@ -4,7 +4,7 @@ import { pushOut } from './collide.js';
 export const R = 0.5;            // 충돌 구 반지름(m)
 const G = -25, WALK = 5, RUN = 11, JUMP = 10, AIR = 8, SWING = 14, MAX_SWING = 45, MIN_ROPE = 5, CLIMB = 7;
 const ZIP = 50, ZIP_ACC = 90, ZIP_END = 4;
-const SINK = 10, DIVE = 12, FLARE = 5, GLIDE_RATIO = 1.5, DRAG = 3, STEER = 1.2; // 활공: 기본 하강 10m/s, 앞으로 밀면 +12, 당기면 -5
+const SINK = 6, DIVE = 8, FLARE = 3, GLIDE_SPEED = 40, GLIDE_BOOST = 0.35, DRAG = 3, STEER = 1.2; // 활공: 앞으로 40m/s·하강 6m/s, 진행 방향으로 밀면 더 빠르게(+35%, 하강 +8), 당기면 느리게(-35%, 하강 -3)
 const n = new THREE.Vector3();
 
 export class Player {
@@ -37,7 +37,7 @@ export class Player {
     this.zipping = false;
   }
 
-  // move: 월드 xz 방향(길이 ≤1), jump: 이번 스텝 점프 여부, run: 달리기, glide: 활공(공중에서 느리게 떨어지며 조종)
+  // move: 월드 xz 방향(길이 ≤1), jump: 이번 스텝 점프 여부, run: 달리기, glide: 활공(공중에서 앞으로 빠르게 날며 조금씩 하강)
   step(dt, move, jump, { run = false, glide = false } = {}) {
     const v = this.vel;
     let gravity = G;
@@ -67,13 +67,13 @@ export class Player {
     }
     v.y += gravity * dt;
     if (glide && !this.anchor && !this.onGround && !this.climbing && v.y < 0) {
-      // 활공(스카이다이빙): 공기 저항으로 하강 속도가 줄고 그만큼 앞으로 나아감. 스틱으로 방향을 조금씩 틀고, 진행 방향으로 밀면 급강하·당기면 버팀
+      // 활공: 하강 속도가 줄고 앞으로 빠르게 나아감. 스틱으로 방향을 조금씩 틀고, 진행 방향으로 밀면 급강하·당기면 버팀
       const hv = Math.hypot(v.x, v.z), f = hv > 1 ? (move.x * v.x + move.z * v.z) / hv : 0;
       const sink = SINK + f * (f > 0 ? DIVE : FLARE);
       if (v.y < -sink) v.y += (-sink - v.y) * Math.min(1, DRAG * dt) - G * dt; // 목표 속도보다 빠르면 저항이 중력을 이기고 남는 속도를 줄임
       let dx = move.x, dz = move.z;
       if (dx * dx + dz * dz < 0.01 && hv > 1) { dx = v.x / hv; dz = v.z / hv; } // 안 밀면 가던 방향 그대로
-      const k = Math.min(1, STEER * dt), s = sink * GLIDE_RATIO;
+      const k = Math.min(1, STEER * dt), s = GLIDE_SPEED * (1 + f * GLIDE_BOOST);
       v.x += (dx * s - v.x) * k; v.z += (dz * s - v.z) * k;
     }
     this.pos.addScaledVector(v, dt);
