@@ -15,7 +15,7 @@ export function createInput(canvas) {
     s.glide = keys.has('Space'); // 점프를 누르고 있으면 공중에서 활공
   };
   addEventListener('keydown', (e) => {
-    if (e.target.tagName === 'INPUT') return; // 도시 검색창에 입력 중
+    if (e.target.tagName === 'INPUT') return; // 장소 검색창에 입력 중
     keys.add(e.code); if (e.code === 'Space') s.jump = true; axes();
   });
   addEventListener('keyup', (e) => { keys.delete(e.code); axes(); });
