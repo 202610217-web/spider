@@ -17,6 +17,8 @@ export function buildingStyle(tags = {}, h, area) {
   if (tags.historic || /hanok|traditional/.test(tags['building:architecture'] ?? '')) return 5;
   if (tags.building === 'residential') return h >= 20 ? 1 : 0;
   if (tags.building in BY_TYPE) return BY_TYPE[tags.building];
+  // 태그가 전혀 없는 위성 AI 건물(Overture): 대부분 시골·교외 → 작으면 주택, 넓고 낮으면 창고·축사(공장 모양), 나머지는 상가
+  if (!tags.building) return area < 300 ? 0 : h <= 12 && area >= 600 ? 4 : 2;
   // 종류 없음(building=yes가 대부분): 크기로 추정 — 작으면 주택, 높고 넓으면 오피스, 높고 좁으면 아파트, 나머지는 상가
   if (area < 120 && h <= 20) return 0;
   if (h >= 35) return area >= 1500 ? 3 : 1;

@@ -31,12 +31,22 @@ jobs:
         with:
           path: data/south-korea-latest.osm.pbf
           key: korea-pbf-v1
+      # OSM에 없는 건물(Overture, 위성 AI 윤곽). 릴리스를 바꾸면 키도 바꿈
+      - uses: actions/cache@v4
+        with:
+          path: data/overture.ndjson
+          key: overture-2026-10-21.0-v1
+      - name: Overture 건물 받기
+        run: |
+          [ -f data/overture.ndjson ] || { pip install duckdb==2.0.0 && python3 scripts/overture.py; }
       - name: 전국 타일 생성
         run: |
           mkdir -p data
           [ -f data/south-korea-latest.osm.pbf ] || curl -fL -o data/south-korea-latest.osm.pbf https://download.geofabrik.de/asia/south-korea-latest.osm.pbf
           npm run build:tiles
-          du -sh public/data/tiles # GitHub Pages 한도는 1GB
+          du -sh public/data/tiles
+          # GitHub Pages 사이트 한도는 1GB: 넘으면 배포가 깨지므로 여기서 멈춤
+          [ $(du -sm public/data | cut -f1) -lt 950 ] || { echo '타일이 950MB를 넘음 — R2로 옮기거나 줄여야 함'; exit 1; }
       - run: npx vite build --base=/${{ github.event.repository.name }}/
         env:
           VITE_TILE_URL: ${{ vars.TILE_URL }} # 비어 있으면 사이트에 함께 올린 타일을 읽음

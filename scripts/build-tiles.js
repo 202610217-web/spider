@@ -1,9 +1,10 @@
-// OSM 추출본(.osm.pbf) → 타일별 건물·도로·물·횡단보도·신호등 JSON (public/data/tiles/15/x/y.json)
+// OSM 추출본(.osm.pbf) → 타일별 건물·도로·물·땅 덮개·횡단보도·신호등 JSON
+// data/overture.ndjson(scripts/overture.py)이 있으면 OSM에 없는 건물(위성 AI 윤곽)도 더함 (public/data/tiles/15/x/y.json)
 // 사용: node scripts/build-tiles.js [입력.osm.pbf]   (osmium-tool 필요)
 // 좌표는 타일 북서쪽 모서리 기준 미터: [동쪽, 북쪽(음수)]
 import { spawn, execFileSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, createReadStream } from 'node:fs';
 import { buildingHeight } from '../src/height.js';
 import { buildingStyle } from '../src/style.js';
 import { Z, S, lonLatToTile } from '../src/tile.js';
@@ -11,6 +12,7 @@ import { ROAD_WIDTH, densify } from '../src/roads.js';
 import { inside } from '../src/collide.js';
 import { clipRing } from '../src/clip.js';
 import { nearestRoad } from '../src/street.js';
+import { LAND, landKind, rasterize, encode } from '../src/land.js';
 
 const SRC = process.argv[2] ?? 'data/south-korea-latest.osm.pbf';
 const OUT = 'public/data/tiles';
@@ -46,7 +48,8 @@ for (const line of readFileSync('data/military.geojsonseq', 'utf8').split('\n'))
 const inMilitary = (p) => military.get(tileOf(p))?.some((ring) => inside(ring, p[0], p[1])) ?? false;
 
 // 건물(멀티폴리곤 포함)·도로·물(강·호수)·횡단보도만 추린 뒤 한 줄에 하나씩 GeoJSON으로 내보냄
-execFileSync('osmium', ['tags-filter', SRC, 'a/building', 'w/highway', 'a/natural=water', 'n/highway=crossing', 'n/highway=traffic_signals', '-o', 'data/buildings.osm.pbf', '--overwrite'], { stdio: 'inherit' });
+execFileSync('osmium', ['tags-filter', SRC, 'a/building', 'w/highway', 'a/natural=water', 'n/highway=crossing', 'n/highway=traffic_signals',
+  'a/landuse=forest,grass,meadow,village_green,recreation_ground,cemetery,farmland,orchard,vineyard,plant_nursery', 'a/natural=wood,scrub,heath,grassland', 'a/leisure=park,golf_course,pitch,garden', '-o', 'data/buildings.osm.pbf', '--overwrite'], { stdio: 'inherit' });
 const osmium = spawn('osmium', ['export', 'data/buildings.osm.pbf', ...EXPORT, '--geometry-types=polygon,linestring,point', '-o', '-'],
   { stdio: ['ignore', 'pipe', 'inherit'] });
 const exit = new Promise((r) => osmium.on('close', r));
@@ -54,7 +57,9 @@ const exit = new Promise((r) => osmium.on('close', r));
 const tiles = new Map(); // "x/y" → { buildings, roads, water: JSON 문자열[], cross·lights: 횡단보도·신호등 [동, 북][] }
 const tile = (key) => tiles.get(key) ?? tiles.set(key, { buildings: [], roads: [], water: [], cross: [], lights: [] }).get(key);
 const meters = (tx, ty) => ([fx, fy]) => [+((fx - tx) * S).toFixed(1), +(-(fy - ty) * S).toFixed(1)];
-const count = { buildings: 0, roads: 0, water: 0, cross: 0, lights: 0, bridges: 0 };
+const count = { buildings: 0, roads: 0, water: 0, cross: 0, lights: 0, bridges: 0, overture: 0 };
+const lands = new Map(); // "x/y" → 땅 덮개 칸 Uint8Array(LAND²)
+const landGrid = (key) => lands.get(key) ?? lands.set(key, new Uint8Array(LAND * LAND)).get(key);
 let skipped = 0;
 // pts(전역 타일 좌표)를 첫 점이 속한 타일 기준 미터로 바꿔 그 타일에 넣음
 function put(kind, pts, props) {
@@ -92,6 +97,9 @@ for await (const line of createInterface({ input: osmium.stdout })) {
       if (pts.some(inMilitary)) skipped++; // 꼭짓점 하나라도 군 부지 안이면 제외
       else put('buildings', pts, (ring) => ({ h, s: buildingStyle(t, h, area(ring)), ring }));
     }
+  } else if (landKind(t) && !t.building) { // 숲·풀밭·논밭: 타일마다 64×64 칸에 칠함
+    for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : [])
+      rasterize(poly.map((r) => r.map(([lon, lat]) => lonLatToTile(lon, lat))), landKind(t), landGrid);
   } else if (t.natural === 'water') { // 강·호수: 걸치는 타일마다 그 타일 안쪽만 잘라 넣음 (구멍 = 섬)
     for (const poly of g.type === 'Polygon' ? [g.coordinates] : g.coordinates) {
       const closed = poly.map((r) => r.map(([lon, lat]) => lonLatToTile(lon, lat)));
@@ -109,7 +117,23 @@ for await (const line of createInterface({ input: osmium.stdout })) {
 }
 if (await exit) throw new Error('osmium export 실패');
 
+// OSM에 없는 건물(Overture: 위성 영상 AI 윤곽, 태그 없음 → 높이·외관은 바닥 넓이로 추정). 좌표는 1m 단위로 줄여 용량을 아낌
+// shortcut: Overture는 자기 OSM 사본과 겹치는 AI 윤곽을 이미 뺐지만, 그 뒤에 OSM에 새로 그린 건물과는 겹칠 수 있음 → 눈에 띄면 OSM 건물 안에 중심이 있는 것을 빼기
+if (existsSync('data/overture.ndjson')) {
+  for await (const line of createInterface({ input: createReadStream('data/overture.ndjson') })) {
+    if (!line) continue;
+    const pts = JSON.parse(line).coordinates.map(([lon, lat]) => lonLatToTile(lon, lat));
+    if (pts.length < 4 || pts.some(inMilitary)) { skipped++; continue; }
+    put('buildings', pts, (xy) => {
+      const ring = xy.map(([x, y]) => [Math.round(x), Math.round(y)]), a = area(ring), h = buildingHeight({}, a);
+      return { h, s: buildingStyle({}, h, a), ring };
+    });
+    count.overture++;
+  }
+}
+
 rmSync(OUT, { recursive: true, force: true });
+for (const key of lands.keys()) tile(key); // 숲만 있는 산 타일도 파일을 만듦
 for (const [key, t] of tiles) {
   mkdirSync(`${OUT}/${Z}/${key.split('/')[0]}`, { recursive: true });
   // 횡단보도·신호등: 3m 안의 가장 가까운 도로에 맞춰 [동, 북, 도로 방향, 도로 폭]으로 (도로에서 먼 것은 버림)
@@ -117,6 +141,6 @@ for (const [key, t] of tiles) {
   const snap = (pts) => pts.map(([x, y]) => [x, y, nearestRoad(roads, x, y)]).filter(([, , n]) => n.d <= 3).map(([x, y, n]) => [x, y, +n.ang.toFixed(2), n.w]);
   const cross = snap(t.cross), lights = snap(t.lights);
   count.cross += cross.length; count.lights += lights.length;
-  writeFileSync(`${OUT}/${Z}/${key}.json`, `{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)},"lights":${JSON.stringify(lights)}}`);
+  writeFileSync(`${OUT}/${Z}/${key}.json`, `{"buildings":[${t.buildings.join(',')}],"roads":[${t.roads.join(',')}],"water":[${t.water.join(',')}],"cross":${JSON.stringify(cross)},"lights":${JSON.stringify(lights)}${lands.has(key) ? `,"land":${JSON.stringify(encode(lands.get(key)))}` : ''}}`);
 }
-console.log(`건물 ${count.buildings}개, 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);
+console.log(`건물 ${count.buildings}개(그중 Overture ${count.overture}개), 땅 덮개 타일 ${lands.size}개, 도로 ${count.roads}개, 물 ${count.water}조각, 횡단보도 ${count.cross}개, 신호등 ${count.lights}개, 다리 ${count.bridges}개 → 타일 ${tiles.size}개 (military 제외: 건물·도로 점 ${skipped}개, 군 부지 타일 ${military.size}개)`);

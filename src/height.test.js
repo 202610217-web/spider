@@ -7,4 +7,8 @@ assert.equal(h({}), 20);
 assert.equal(h({ building: 'apartments' }), 45);
 assert.equal(h({ building: 'apartments', 'building:levels': '5' }), 15);
 assert.equal(h({ building: 'yes' }), 20);
+assert.equal(h({}, 30), 3, '태그 없는 위성 건물은 넓이로');
+assert.equal(h({}, 120), 6);
+assert.equal(h({}, 5000), 15);
+assert.equal(h({ building: 'yes' }, 120), 20, 'OSM 건물(태그 있음)은 기존 규칙 그대로');
 console.log('height ok');
