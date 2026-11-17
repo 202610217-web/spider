@@ -13,7 +13,7 @@
 - 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json`, 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
 - 빠진 건물 보충: Overture Maps 건물 중 OSM 출처가 아닌 것(위성사진 자동 추출 등)을 `scripts/fetch-overture.sh`로 받아 `data/overture.ndjson`에 두면 `build-tiles.js`가 더함. 한국 경계(Geofabrik .poly) 안, 기존 건물과 안 겹치는 것만
 - 땅 덮개: OSM 숲·풀밭·공원·논밭 다각형을 타일마다 64×64 칸으로 칠해 `land`에 넣음(`src/land.js`), 게임은 땅 꼭짓점 색으로 씀
-- 지형: AWS Terrain Tiles (Terrarium) z13 PNG를 브라우저가 직접 받아 타일당 65×65 고도 격자(약 15m 간격)로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
+- 지형: AWS Terrain Tiles (Terrarium) z13 PNG를 브라우저가 직접 받아 캔버스 없이 직접 풀고(`src/png.js` — Safari 등의 지문 방지 잡음이 수백 m짜리 뾰족한 산을 만들기 때문) 타일당 65×65 고도 격자(약 15m 간격)로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
 
 ## 원칙
 - 타일 JSON: `buildings [{h, s, ring}]`, `roads [{w, line, b?}]`(b: 다리), `water [[바깥 링, 구멍…]]`, `cross`·`lights [[동, 북, 도로 방향(rad), 도로 폭]]`(횡단보도·신호등), `land [종류, 칸 수, …]`(0 없음·1 논밭·2 풀밭·3 숲, 64×64 칸 줄임)
