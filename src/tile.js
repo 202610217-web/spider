@@ -6,3 +6,5 @@ export const lonLatToTile = (lon, lat) => {
   const r = (lat * Math.PI) / 180;
   return [((lon + 180) / 360) * 2 ** Z, ((1 - Math.asinh(Math.tan(r)) / Math.PI) / 2) * 2 ** Z];
 };
+// 전역 타일 좌표 → [경도, 위도]
+export const tileToLonLat = (fx, fy) => [(fx / 2 ** Z) * 360 - 180, (Math.atan(Math.sinh(Math.PI * (1 - (2 * fy) / 2 ** Z))) * 180) / Math.PI];

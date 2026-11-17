@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Player, R } from './player.js';
 import { createTiles } from './tiles.js';
-import { S, lonLatToTile } from './tile.js';
+import { S, lonLatToTile, tileToLonLat } from './tile.js';
 import { createInput } from './input.js';
 import { createHero, heroState } from './hero.js';
 import { createGovernor } from './perf.js';
@@ -9,6 +9,7 @@ import { findAnchor } from './web.js';
 import { rayHit } from './collide.js';
 import { createMinimap } from './minimap.js';
 import { setupSearch } from './search.js';
+import { watchRegion } from './region.js';
 
 const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
@@ -77,6 +78,8 @@ scene.add(blob);
 const move = new THREE.Vector3(), target = new THREE.Vector3();
 const camRay = new THREE.Ray();
 const webBtn = document.getElementById('btn-web'), zipBtn = document.getElementById('btn-zip');
+const posEl = document.getElementById('pos');
+const updateRegion = watchRegion((name) => (posEl.textContent = name)); // 미니맵 아래에 "서울특별시 종로구"처럼 표시
 const drawMinimap = createMinimap(document.getElementById('minimap'), tiles);
 setupSearch(document.getElementById('q'), document.getElementById('results'), document.getElementById('status'));
 let acc = 0, last = performance.now(), frame = 0, near = [], zipHeld = false;
@@ -91,6 +94,8 @@ renderer.setAnimationLoop((now) => {
   const sy = Math.sin(input.yaw), cy = Math.cos(input.yaw);
   move.set(-sy * input.my + cy * input.mx, 0, -cy * input.my - sy * input.mx);
   if (move.lengthSq() > 1) move.normalize();
+  // 제자리에서 떨어지다 활공을 시작하면 갈 방향이 없으므로 카메라 정면으로 출발
+  if (input.glide && !player.onGround && move.lengthSq() < 0.01 && Math.hypot(player.vel.x, player.vel.z) < 1) move.set(-sy, 0, -cy);
 
   // 거미줄: 스틱을 민 방향(없으면 카메라 정면) 위쪽 건물을 자동 조준, 건물이 없으면 솟은 지형이나 앞쪽 위 허공에 걸림
   if (frame++ % 15 === 0) player.colliders = near = all.filter((c) => c.box.distanceToPoint(player.pos) < WEB_RANGE); // 15프레임에 최대 12m쯤 움직이므로 80m 반경이면 충분
@@ -154,6 +159,10 @@ renderer.setAnimationLoop((now) => {
   // 빠를수록 시야각을 넓혀 속도감을 줌
   camera.fov += (FOV + Math.min(25, player.vel.length() * 0.45) - camera.fov) * Math.min(1, dt * 3);
   camera.updateProjectionMatrix();
-  if (frame % 12 === 0) drawMinimap(player, hero.rotation.y);
+  if (frame % 12 === 0) {
+    drawMinimap(player, hero.rotation.y);
+    const [lo, la] = tileToLonLat(ox + player.pos.x / S, oy + player.pos.z / S);
+    updateRegion(player.pos.x, player.pos.z, la, lo, now);
+  }
   renderer.render(scene, camera);
 });

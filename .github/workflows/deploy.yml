@@ -31,6 +31,13 @@ jobs:
         with:
           path: data/south-korea-latest.osm.pbf
           key: korea-pbf-v1
+      # OSM에 없는 건물(Overture). 받는 데 오래 걸려 캐시함 (새로 받으려면 키의 v1을 올림)
+      - uses: actions/cache@v4
+        with:
+          path: data/overture.ndjson
+          key: overture-v1
+      - run: scripts/fetch-overture.sh
+        timeout-minutes: 90
       - name: 전국 타일 생성
         run: |
           mkdir -p data
@@ -42,6 +49,7 @@ jobs:
           VITE_TILE_URL: ${{ vars.TILE_URL }} # 비어 있으면 사이트에 함께 올린 타일을 읽음
           VITE_KAKAO_KEY: ${{ vars.KAKAO_JS_KEY }} # 카카오 JavaScript 키(도메인 제한). 비어 있으면 장소 검색은 OSM을 씀
       - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main' # 브랜치 빌드는 배포하지 않으므로 올리지 않음
         with:
           path: dist
 

@@ -11,6 +11,7 @@
 ## 데이터
 - 건물·도로: OpenStreetMap — Geofabrik 한국 추출본(.osm.pbf)을 `osmium-tool`로 가공 (`scripts/build-tiles.js`)
 - 타일: z15 슬리피 타일(약 1km), `public/data/tiles/15/x/y.json`, 좌표는 타일 북서 모서리 기준 미터 (`src/tile.js`)
+- 빠진 건물 보충: Overture Maps 건물 중 OSM 출처가 아닌 것(위성사진 자동 추출 등)을 `scripts/fetch-overture.sh`로 받아 `data/overture.ndjson`에 두면 `build-tiles.js`가 더함. 한국 경계(Geofabrik .poly) 안, 기존 건물과 안 겹치는 것만
 - 지형: AWS Terrain Tiles (Terrarium) z12 PNG를 브라우저가 직접 받아 타일당 33×33 고도 격자로 사용 (`src/terrain.js`), 실패 시 평지(0.5m — 0m 이하는 바다로 그림)
 
 ## 원칙
@@ -22,14 +23,14 @@
 - 텍스처는 CC0만 사용하고 512px 이하로 줄여 `public/textures/`에 둠. 벽·옥상·땅용은 건물 색이 곱해지도록 밝은 회색조
 - 건물은 바닥 모양을 그대로 올린 로우폴리 기둥, 충돌·거미줄 부착·카메라도 같은 기둥(`src/collide.js`) 기준 (외곽 상자는 걸러내기용)
 - 도로는 바닥에 깔리는 띠, 폭은 등급별 표(`src/roads.js`)만 사용. 표에 없는 등급과 터널은 제외
-- 건물 높이 추정 규칙은 `src/height.js` 하나만 사용: `height` → `building:levels × 3m` → 건물 종류별 기본값 → 20m
+- 건물 높이 추정 규칙은 `src/height.js` 하나만 사용: `height` → `building:levels × 3m` → 건물 종류별 기본값 → 20m. Overture에서 더한 건물만 20m 대신 바닥 넓이별 기본값(120㎡ 미만 6m, 500㎡ 미만 12m, 그 이상 20m)
 - 건물 외관은 `src/style.js`의 유형 6가지(빌라·아파트·상가·오피스·공장·전통)만 사용: 타일 생성 때 태그·높이·넓이로 유형(`s`)을 정하고, 게임은 유형별 창 무늬 텍스처(캔버스로 생성)와 벽·옥상 색을 입힘 (`src/buildings.js`)
 - 단위는 실제 미터, 주인공 키 1.8m
 - 플레이어 주변 타일만 불러오고 먼 타일은 해제(스트리밍)
 - 좌표는 타일마다 원점을 따로 잡아 부동소수점 떨림 방지 (타일 데이터는 원점 기준 미터)
 - 큰 데이터 파일은 저장소에 올리지 않음 (`public/data/`는 gitignore, 스크립트로 생성)
 - `military` 태그가 붙은 시설과, 군 부지(`landuse=military`, `military=*`) 다각형 안의 건물·도로는 데이터에서 제외
-- OSM 출처 표기 필수 (© OpenStreetMap contributors)
+- 출처 표기 필수 (© OpenStreetMap contributors · Overture Maps)
 
 ## R2 이전 (선택)
 - `scripts/upload-r2.sh`: 타일을 gzip으로 압축해 R2에 올림(aws CLI, S3 호환 API). GitHub Actions의 `upload-r2` 워크플로를 수동 실행
@@ -72,3 +73,6 @@
 - [x] 19단계: 검색창에서 주소·건물 이름으로 전국 어디든 이동(OSM Nominatim)
 - [x] 20단계: 장소 검색 UI 개선(결과 목록·키보드 선택·상태 안내), 카카오맵 장소 검색·주소 변환 연결(키 미설정 — OSM 검색으로 동작 중)
 - 보류: 브이월드(VWorld) 지도 — 인증키 필요, 클라우드 세션에서 vworld.kr 접속 불가로 문서 미확인
+- [x] 미니맵 아래에 현재 행정구역("서울특별시 종로구") 표시 — OSM Nominatim 역지오코딩(`src/region.js`), 300m 이상 움직이고 10초가 지났을 때만 요청. 활공을 앞으로 빠르게 나는 방식으로 변경(40m/s, 하강 6m/s, 밀면 54m/s)
+- [x] OSM에 없는 건물을 Overture Maps에서 보충. 보충한 건물의 높이는 바닥 넓이로 추정(120㎡ 미만 6m, 120~500㎡ 12m, 500㎡ 이상 20m). 브랜치 빌드는 Pages 아티팩트를 올리지 않음
+- 전국 빌드 결과(2026-11): 건물 351만 개(OSM 137만 + Overture 215만), 타일 8.5만 개, 763MB — GitHub Pages 한도 1GB에 가까워 더 늘리려면 R2 이전 필요
