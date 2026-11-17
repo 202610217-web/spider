@@ -3,14 +3,14 @@ import { Z, S } from './tile.js';
 import { makeCollider } from './collide.js';
 import { addRibbon, densify } from './roads.js';
 import { N, tileHeights, heightAt } from './terrain.js';
-import { buildingGeometries, buildingMaterials } from './buildings.js';
+import { buildingGeometries, buildingMaterials, photo } from './buildings.js';
 
 const BASE = import.meta.env.VITE_TILE_URL || import.meta.env.BASE_URL + 'data/tiles'; // VITE_TILE_URL: R2 공개 주소
 const LOAD = 1, KEEP = 2; // 주변 3×3 타일 로드, 5×5 밖은 해제
 const SINK = 8; // 경사지에서 건물 밑이 뜨지 않게 땅속으로 내리는 깊이(m)
-const groundMat = new THREE.MeshLambertMaterial({ color: 0x8a9a7a });
-// 바닥과 겹쳐 깜빡이지 않게 살짝 띄우고 깊이도 당김
-const roadMat = new THREE.MeshBasicMaterial({ color: 0x4a4d52, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+const lineMat = new THREE.MeshBasicMaterial({ color: 0xe8b93a, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -4 });
+let groundMat, roadMat; // 텍스처를 쓰므로 첫 타일에서 만듦
+const PAVED = new THREE.Color(0xb4b4ae), GREEN = new THREE.Color(0x6f8a5a), tint = new THREE.Color();
 
 // 플레이어 주변 타일만 불러오고 먼 타일은 해제. 월드 원점 = 타일 (ox, oy)의 북서쪽 모서리
 export function createTiles(scene, ox, oy, onChange) {
@@ -37,6 +37,16 @@ export function createTiles(scene, ox, oy, onChange) {
     const ground = new THREE.PlaneGeometry(S, S, N, N).rotateX(-Math.PI / 2).translate(S / 2, 0, S / 2); // 꼭짓점 순서 = 고도 격자 순서
     for (let i = 0; i < hgt.length; i++) ground.attributes.position.setY(i, hgt[i]);
     ground.computeVertexNormals();
+    // 평평한 곳은 포장된 도시 바닥(회색), 비탈은 산(녹색). 무늬는 6m마다 반복
+    const { normal, uv } = ground.attributes, col = new Float32Array(hgt.length * 3);
+    for (let i = 0; i < hgt.length; i++) {
+      tint.lerpColors(PAVED, GREEN, THREE.MathUtils.clamp((0.995 - normal.getY(i)) / 0.03, 0, 1)).toArray(col, i * 3);
+      uv.setXY(i, (uv.getX(i) * S) / 6, (uv.getY(i) * S) / 6);
+    }
+    ground.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    groundMat ??= new THREE.MeshLambertMaterial({ map: photo('concrete'), vertexColors: true });
+    // 도로: 바닥과 겹쳐 깜빡이지 않게 살짝 띄우고 깊이도 당김
+    roadMat ??= new THREE.MeshBasicMaterial({ map: photo('asphalt'), color: 0xb8b8b8, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
     tile.group.add(new THREE.Mesh(ground, groundMat));
 
     if (buildings.length) {
@@ -52,8 +62,18 @@ export function createTiles(scene, ox, oy, onChange) {
       for (const { w, line } of roads) addRibbon(pos, idx, densify(line, 6), w, (x, z) => heightAt(hgt, x, z) + 0.3);
       const g = new THREE.BufferGeometry();
       g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      g.setAttribute('uv', new THREE.Float32BufferAttribute(pos.filter((_, i) => i % 3 !== 1).map((v) => v / 3), 2)); // 위에서 본 위치 기준, 3m마다 반복
       g.setIndex(idx);
       tile.group.add(new THREE.Mesh(g, roadMat));
+      // 넓은 도로(6m 이상)에는 노란 중앙선
+      const lp = [], li = [];
+      for (const { w, line } of roads) if (w >= 6) addRibbon(lp, li, densify(line, 6), 0.2, (x, z) => heightAt(hgt, x, z) + 0.34);
+      if (li.length) {
+        const lg = new THREE.BufferGeometry();
+        lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+        lg.setIndex(li);
+        tile.group.add(new THREE.Mesh(lg, lineMat));
+      }
     }
     scene.add(tile.group);
     loaded.set(key, tile);
