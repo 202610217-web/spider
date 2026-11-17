@@ -14,6 +14,7 @@ export function setupMenu() {
     return b;
   }));
   start.addEventListener('click', () => {
+    if (document.body.classList.contains('touch')) document.documentElement.requestFullscreen?.().catch(() => {}); // 태블릿: 주소창 없이 전체 화면 (지원하는 브라우저만)
     document.body.classList.remove('menu');
     document.body.append(search); // 검색창을 게임 화면 왼쪽 위로
   });

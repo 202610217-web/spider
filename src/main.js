@@ -15,7 +15,13 @@ import { watchRegion } from './region.js';
 const WEB_RANGE = 80, STEP = 1 / 120, CAM_DIST = 9, FOV = 65;
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
-const maxRatio = Math.min(devicePixelRatio, 2), governor = createGovernor(maxRatio, maxRatio * 0.5);
+// 터치 기기 표시: 손가락이 주 입력이면 처음부터, 아니면 처음 터치했을 때 (터치 조작 버튼·조이스틱이 보임)
+const touchUI = () => { document.body.classList.add('touch'); document.getElementById('q').placeholder = '장소 검색: 도시·주소·건물 이름'; }; // '/' 단축키 표시는 뺌
+if (matchMedia('(any-pointer: coarse)').matches) touchUI();
+addEventListener('touchstart', touchUI, { once: true, passive: true });
+addEventListener('gesturestart', (e) => e.preventDefault()); // iOS 사파리는 user-scalable=no를 무시하므로 손가락 확대를 직접 막음
+// 휴대폰·태블릿은 화면이 작아 해상도 1.5배로 시작(60fps 우선), 여유가 있으면 해상도 조절기가 올림
+const maxRatio = Math.min(devicePixelRatio, document.body.classList.contains('touch') ? 1.5 : 2), governor = createGovernor(maxRatio, maxRatio * 0.5);
 renderer.setPixelRatio(maxRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.autoUpdate = false; // 해와 건물은 안 움직이므로 그림자 지도는 자리를 옮길 때만 다시 그림

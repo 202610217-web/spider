@@ -2,14 +2,20 @@
 <html lang="ko">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="theme-color" content="#2a63b8" />
   <title>Spider</title>
   <style>
-    html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc3e6; }
+    html, body { margin: 0; height: 100%; overflow: hidden; background: #9cc3e6; overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+    /* 터치: 길게 누르기 메뉴·글자 선택·두 번 탭 확대를 막음 (검색창은 예외) */
+    body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+    input { -webkit-user-select: text; user-select: text; }
     canvas { display: block; touch-action: none; }
     #hud { position: fixed; left: 6px; top: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
     .tbtn { display: none; position: fixed; bottom: 30px; width: 72px; height: 72px; border-radius: 50%; border: 0; background: #fff8; font: 14px sans-serif; touch-action: none; user-select: none; }
-    #btn-web.ready, #btn-zip.ready { background: #3fe0c5; }
     #minimap { position: fixed; right: 8px; top: 8px; width: 150px; height: 150px; border-radius: 8px; border: 2px solid #fff8; pointer-events: none; }
     #pos { position: fixed; right: 8px; top: 166px; width: 154px; box-sizing: border-box; font: 13px sans-serif; text-align: center; background: #fffc; padding: 4px 6px; border-radius: 6px; pointer-events: none; }
     #pos:empty { display: none; }
@@ -25,10 +31,10 @@
     @media (pointer: coarse) { #search { top: 8px; } }
     /* 메인 화면 (피그마 'Main screen — liquid glass'): 뒤에 실제 게임 화면이 흐릿하게 비치는 유리 패널 */
     .glass { background: linear-gradient(#ffffff42, #ffffff1a); border: 1.5px solid #ffffff80; box-shadow: inset 0 2px 3px #ffffff8c, 0 18px 48px #0d1f4047; -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6); }
-    #menu { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 12px; overflow-y: auto; font: 16px system-ui, sans-serif; color: #fff;
+    #menu { position: fixed; inset: 0; padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); display: none; align-items: center; justify-content: center; padding: 12px; overflow-y: auto; font: 16px system-ui, sans-serif; color: #fff;
       background: radial-gradient(60% 50% at 10% 0%, #3fe0c566, transparent), radial-gradient(50% 45% at 95% 5%, #ffffff55, transparent), linear-gradient(#1c4fb0b3, #2a63b866 55%, #1f2a4480); }
     body.menu #menu { display: flex; }
-    body.menu #hud, body.menu #minimap, body.menu #pos, body.menu .tbtn { display: none; }
+    body.menu #hud, body.menu #minimap, body.menu #pos, body.menu .tbtn, body.menu #stick { display: none !important; }
     #panel { box-sizing: border-box; width: min(620px, 100%); margin: auto; padding: 44px 48px 40px; border-radius: 40px; display: flex; flex-direction: column; align-items: center; gap: 22px; text-align: center; text-shadow: 0 1px 6px #0d1f4066; }
     #panel .badge { display: flex; align-items: center; gap: 8px; padding: 6px 14px; border-radius: 999px; font-size: 14px; font-weight: 500; box-shadow: inset 0 2px 3px #ffffff8c; }
     #panel .badge::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #3fe0c5; }
@@ -49,7 +55,33 @@
     body.menu #results, body.menu #status { position: absolute; left: 0; right: 0; z-index: 1; }
     @media (max-width: 520px) { #panel { padding: 32px 22px 28px; border-radius: 30px; gap: 18px; } }
     @media (prefers-reduced-motion: reduce) { #start { transition: none; } }
-    @media (pointer: coarse) { .tbtn { display: block; } #hud { display: none; } }
+    /* ── 터치 기기 (body.touch: 처음 터치하거나 손가락이 주 입력인 기기). 기준은 태블릿 가로 ── */
+    #stick { position: fixed; left: -70px; top: -70px; width: 140px; height: 140px; border-radius: 50%; pointer-events: none; opacity: 0; transition: opacity 0.15s; }
+    #stick.on { opacity: 1; transition: none; }
+    #stick > span { position: absolute; left: 40px; top: 40px; width: 60px; height: 60px; border-radius: 50%; background: linear-gradient(#ffffffd9, #ffffff99); box-shadow: 0 4px 14px #0d1f4040; }
+    .tbtn { position: fixed; display: none; border-radius: 50%; color: #fff; font: 600 17px system-ui, sans-serif; text-shadow: 0 1px 4px #0d1f4080; touch-action: none; padding: 0; }
+    .tbtn.down { transform: scale(0.93); background: linear-gradient(#ffffff66, #ffffff33); }
+    #btn-web.ready, #btn-zip.ready { background: linear-gradient(#6ff0dacc, #2fcdb2cc); color: #0e2a3a; text-shadow: none; }
+    /* 오른쪽 엄지 둘레에 부채꼴로: 거미줄(가장 크게) · 점프 · 당기기. 노치·홈 바를 피함 */
+    #btn-web { width: 104px; height: 104px; right: calc(28px + env(safe-area-inset-right)); bottom: calc(36px + env(safe-area-inset-bottom)); font-size: 19px; }
+    #btn-jump { width: 84px; height: 84px; right: calc(150px + env(safe-area-inset-right)); bottom: calc(30px + env(safe-area-inset-bottom)); }
+    #btn-zip { width: 84px; height: 84px; right: calc(40px + env(safe-area-inset-right)); bottom: calc(158px + env(safe-area-inset-bottom)); }
+    body.touch .tbtn { display: block; }
+    body.touch #hud { display: none; }
+    body.touch #search { top: calc(10px + env(safe-area-inset-top)); left: calc(10px + env(safe-area-inset-left)); }
+    body.touch #q { padding: 10px 14px; font-size: 16px; } /* 16px 미만이면 iOS가 입력할 때 확대함 */
+    body.touch #minimap { top: calc(10px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); }
+    body.touch #pos { top: calc(168px + env(safe-area-inset-top)); right: calc(10px + env(safe-area-inset-right)); }
+    body.touch #attr { bottom: calc(4px + env(safe-area-inset-bottom)); left: calc(6px + env(safe-area-inset-left)); right: auto; font-size: 10px; opacity: 0.8; }
+    body.touch #panel .help:not(.help-touch), body:not(.touch) #panel .help-touch { display: none; }
+    /* 휴대폰(작은 화면): 버튼·미니맵을 줄임 */
+    @media (max-height: 500px), (max-width: 500px) {
+      #btn-web { width: 84px; height: 84px; right: calc(18px + env(safe-area-inset-right)); bottom: calc(20px + env(safe-area-inset-bottom)); }
+      #btn-jump { width: 66px; height: 66px; right: calc(116px + env(safe-area-inset-right)); bottom: calc(14px + env(safe-area-inset-bottom)); }
+      #btn-zip { width: 66px; height: 66px; right: calc(26px + env(safe-area-inset-right)); bottom: calc(120px + env(safe-area-inset-bottom)); }
+      body.touch #minimap { width: 110px; height: 110px; } body.touch #pos { top: calc(126px + env(safe-area-inset-top)); width: 114px; font-size: 11px; }
+      body.touch #search { width: min(240px, calc(100vw - 150px)); }
+    }
     #attr { position: fixed; right: 6px; bottom: 4px; font: 12px sans-serif; background: #fffc; padding: 2px 6px; }
   </style>
 </head>
@@ -65,6 +97,7 @@
       <div id="chips" aria-label="바로 가기"></div>
       <button id="start">시작하기</button>
       <span class="help">WASD 이동 · Shift 달리기 · Space 점프/활공 · 마우스 왼쪽 거미줄 · E 당기기</span>
+      <span class="help help-touch">왼쪽 엄지로 이동(멀리 밀면 달리기) · 오른쪽을 끌어 시점 · 거미줄 누르고 있기 · 점프 길게 누르면 활공</span>
     </main>
   </div>
   <div id="search">
@@ -74,9 +107,10 @@
   </div>
   <canvas id="minimap" aria-label="미니맵"></canvas>
   <div id="pos" aria-label="현재 위치"></div>
-  <button id="btn-zip" class="tbtn" style="right: 20px; bottom: 115px">당기기</button>
-  <button id="btn-jump" class="tbtn" style="right: 110px">점프</button>
-  <button id="btn-web" class="tbtn" style="right: 20px">거미줄</button>
+  <div id="stick" class="glass" aria-hidden="true"><span></span></div>
+  <button id="btn-zip" class="tbtn glass" aria-label="당기기">당기기</button>
+  <button id="btn-jump" class="tbtn glass" aria-label="점프, 길게 누르면 활공">점프</button>
+  <button id="btn-web" class="tbtn glass" aria-label="거미줄, 누르고 있는 동안 스윙">거미줄</button>
   <div id="attr">© <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap</a> contributors · <a href="https://docs.overturemaps.org/attribution/" target="_blank">Overture Maps</a> · 지형 <a href="https://registry.opendata.aws/terrain-tiles/" target="_blank">AWS Terrain Tiles</a></div>
   <script type="module" src="./src/main.js"></script>
 </body>
